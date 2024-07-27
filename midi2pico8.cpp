@@ -6,32 +6,64 @@
 #include <Windows.h>
 #include <map>
 
-#include "../RtMidi.h"
+#include "RtMidi.h"
+
+#define LOGALL false
 
 #define MESSAGE_TYPE_NOTE 144
 #define MESSAGE_TYPE_PAD 153
 #define MESSAGE_TYPE_BTN 191
 #define MESSAGE_TYPE_KNOB 176
 
-int oldKnobValue = 0;
 std::vector< unsigned char >* old_message;
-std::vector<std::string> padkeyNames = { "Down", "PgDown", "Left", "Right", "Up", "PgUp", "", "" };
-std::vector<std::string> buttonkeyNames = { "Home", "-", "+", "Del", "Enter", "Space"};
+
+bool g_numpad=false;
+
+// source for scan codes : https://learn.microsoft.com/en-us/previous-versions/visualstudio/visual-studio-6.0/aa299374(v=vs.60)
+// source for virtual keys : https://learn.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
+// source for extended keys : https://learn.microsoft.com/en-us/windows/win32/inputdev/about-keyboard-input#extended-key-flag
 
 typedef struct s_key
 {
-	int scs;
+	short scs;
 	bool ext;
 	char name[10];
 };
 
-std::map<char, s_key> g_keys = {
+typedef struct s_knob
+{
+	short vkminus;
+	short vkplus;
+	char lastValue;
+};
+
+std::map<short, s_key> g_keys = {
 	{VK_DOWN,{0x50,true,"Down"}},
 	{VK_NEXT,{0x51,true,"PgDown"}},
 	{VK_LEFT,{0x4b,true,"Left"}},
 	{VK_RIGHT,{0x4d,true,"Right"}},
 	{VK_UP,{0x48,true,"Up"}},
 	{VK_PRIOR,{0x49,true,"PgUp"}},
+	{VK_HOME,{0x47,true,"Home"}},
+	{VK_SUBTRACT,{0xc,false,"-"}},
+	{VK_ADD,{0xd,false,"+"}},
+	{VK_DELETE,{0x53,true,"Del"}},
+	{VK_RETURN,{0x1c,false,"Enter"}},
+	{VK_SPACE,{0x39,false,"Space"}},
+	{VK_OEM_COMMA,{0x33,false,","}},
+	{VK_OEM_PERIOD,{0x34,false,"."}},
+	{VK_LMENU,{0x38,false,"Alt"}},
+	{VK_LCONTROL,{0x1d,false,"Ctrl"}},
+	{VK_NUMPAD1,{0x4f,false,"Numpad1"}},
+	{VK_NUMPAD2,{0x50,false,"Numpad2"}},
+	{VK_NUMPAD3,{0x51,false,"Numpad3"}},
+	{VK_NUMPAD4,{0x4b,false,"Numpad4"}},
+	{VK_NUMPAD5,{0x4c,false,"Numpad5"}},
+	{VK_NUMPAD6,{0x4d,false,"Numpad6"}},
+	{VK_NUMPAD7,{0x47,false,"Numpad7"}},
+	{VK_NUMPAD8,{0x48,false,"Numpad8"}},
+	{VK_NUMPAD9,{0x49,false,"Numpad9"}},
+	{VK_NUMPAD0,{0x52,false,"Numpad0"}},
 	{'Z',{0x2c,false,"Z"}},
 	{'S',{0x1f,false,"S"}},
 	{'X',{0x2d,false,"X"}},
@@ -95,18 +127,41 @@ std::map<char, char> g_notes = {
 	{76,'P'},
 };
 
-std::map<char,char> g_pads = {
-	{36,VK_DOWN},
-	{38,VK_NEXT},
-	{42,VK_LEFT},
+std::map<char, short> g_pads = {
+	{36,VK_LCONTROL},
+	{38,VK_LEFT},
+	{42,VK_DOWN},
 	{46,VK_RIGHT},
-	{50,VK_UP},
+	{50,VK_LMENU},
 	{45,VK_PRIOR},
-	{51,0},
-	{49,0},
+	{51,VK_UP},
+	{49,VK_NEXT},
 };
 
-bool keyhit(char vk)
+std::map<char, short> g_numpads = {
+	{36,VK_NUMPAD0},
+	{38,VK_NUMPAD1},
+	{42,VK_NUMPAD2},
+	{46,VK_NUMPAD3},
+	{50,VK_NUMPAD4},
+	{45,VK_NUMPAD5},
+	{51,VK_NUMPAD6},
+	{49,VK_NUMPAD7},
+};
+
+std::map<char, short> g_btns = {
+	{113,0},
+	{114,VK_SUBTRACT},
+	{115,VK_ADD},
+	{116,VK_DELETE},
+	{117,VK_RETURN},
+	{118,VK_SPACE},
+};
+std::map<char, s_knob> g_knobs = {
+	{74,{ VK_OEM_COMMA, VK_OEM_PERIOD, 0 }},
+};
+
+bool keypress(short vk, bool press, bool release)
 {
 	if (vk != 0)
 	{
@@ -126,10 +181,18 @@ bool keyhit(char vk)
 				ip.ki.wScan |= 0xE000;
 			}
 
-			SendInput(1, &ip, sizeof(INPUT));
-			ip.ki.dwFlags |= KEYEVENTF_KEYUP;
-			SendInput(1, &ip, sizeof(INPUT));
-			std::cout << "key hit " << key.name << "\n";
+			if (press)
+			{
+				SendInput(1, &ip, sizeof(INPUT));
+				std::cout << "press " << key.name << "\n";
+			}
+
+			if (release)
+			{
+				ip.ki.dwFlags |= KEYEVENTF_KEYUP;
+				SendInput(1, &ip, sizeof(INPUT));
+				std::cout << "release " << key.name << "\n";
+			}
 
 			return true;
 		}
@@ -140,7 +203,6 @@ bool keyhit(char vk)
 
 void mycallback(double deltatime, std::vector< unsigned char > *message, void *userData)
 {
-
 	if (message == old_message)
 	{
 		old_message = NULL;
@@ -151,10 +213,10 @@ void mycallback(double deltatime, std::vector< unsigned char > *message, void *u
 	if (type == MESSAGE_TYPE_NOTE)
 	{
 		int note = message->at(1);
-		char vk = g_notes.at(note);
+		short vk = g_notes.at(note);
 		if (vk!=0)
 		{
-			if (!keyhit(vk))
+			if (!keypress(vk,true,true))
 			{
 				std::cout << "note " << note << "\n";
 			}
@@ -168,47 +230,39 @@ void mycallback(double deltatime, std::vector< unsigned char > *message, void *u
 		if (type == MESSAGE_TYPE_PAD)
 		{
 			int pad = message->at(1);
-			if (message->at(2) != 0)
+			bool press = message->at(2) != 0;
+			short vk;
+			if (g_numpad)
 			{
-				char vk=g_pads.at(pad);
-				if (!keyhit(vk))
-				{
-					std::cout << "pad " << pad << "\n";
-				}
+				vk = g_numpads.at(pad);
+			}
+			else
+			{
+				vk = g_pads.at(pad);
+			}
+			if (!keypress(vk, press, !press))
+			{
+				std::cout << "pad " << pad << "\n";
 			}
 		}
 		else if (type == MESSAGE_TYPE_BTN)
 		{
-			if (message->at(2) != 0)
+			int btnVal = (int)message->at(1);
+			bool press = message->at(2) != 0;
+			short vk = g_btns.at(btnVal);
+			if (!keypress(vk, press, !press))
 			{
-				int btnVal = (int)message->at(1);
-				if (btnVal >= 113 && btnVal <= 118)
+				if (btnVal == 113)
 				{
-					// HOME, UP, DOWN, DEL, ENTER, SPACE 
-					char vks[] = { VK_HOME, VK_SUBTRACT, VK_ADD, VK_DELETE, VK_RETURN, VK_SPACE };
-
-					int scs[] =	{ 0x47, 0xc, 0xd, 0x53, 0x1c, 0x39};
-					auto vk = vks[btnVal - 113];
-					auto sc = scs[btnVal - 113];
-
-					INPUT ip;
-					ip.type = INPUT_KEYBOARD;
-					ip.ki.time = 0;
-					ip.ki.wVk = vk;
-					ip.ki.wScan = sc;
-
-					ip.ki.dwExtraInfo = GetMessageExtraInfo();
-					ip.ki.dwFlags = 0;
-					if (btnVal==113 || btnVal==116)
+					g_numpad = press;
+					if (g_numpad)
 					{
-						ip.ki.dwFlags = KEYEVENTF_EXTENDEDKEY;
-						ip.ki.wScan |= 0xE000;
+						std::cout << "pads in number mode\n";
 					}
-					SendInput(1, &ip, sizeof(INPUT));
-					ip.ki.dwFlags |= KEYEVENTF_KEYUP;
-					SendInput(1, &ip, sizeof(INPUT));
-
-					std::cout << "button " << btnVal << ", key " << buttonkeyNames[btnVal-113] << "\n";
+					else
+					{
+						std::cout << "pads in cursor mode\n";
+					}
 				}
 				else
 				{
@@ -221,51 +275,34 @@ void mycallback(double deltatime, std::vector< unsigned char > *message, void *u
 			int knob = (int)message->at(1);
 			int val = (int)message->at(2);
 
-			if (knob == 74)
+			s_knob def = g_knobs.at(knob);
+			if (def.vkminus != 0)
 			{
-				if (val <= oldKnobValue)
+				if (val <= def.lastValue)
 				{
-					INPUT ip;
-					ip.type = INPUT_KEYBOARD;
-					ip.ki.time = 0;
-					ip.ki.wVk = VK_OEM_COMMA;
-					ip.ki.wScan = 0x33;
-					ip.ki.dwExtraInfo = GetMessageExtraInfo();
-					ip.ki.dwFlags = 0;
-					SendInput(1, &ip, sizeof(INPUT));
-					ip.ki.dwFlags |= KEYEVENTF_KEYUP;
-					SendInput(1, &ip, sizeof(INPUT));
-					std::cout << "knob " << knob << ", val " << val << ", key comma\n";
+					keypress(def.vkminus,true, true);
 				}
-				else if (val > oldKnobValue)
+				else if (val > def.lastValue)
 				{
-					INPUT ip;
-					ip.type = INPUT_KEYBOARD;
-					ip.ki.time = 0;
-					ip.ki.wVk = VK_OEM_PERIOD;
-					ip.ki.wScan = 0x34;
-					ip.ki.dwExtraInfo = GetMessageExtraInfo();
-					ip.ki.dwFlags = 0;
-					SendInput(1, &ip, sizeof(INPUT));
-					ip.ki.dwFlags |= KEYEVENTF_KEYUP;
-					SendInput(1, &ip, sizeof(INPUT));
-					std::cout << "knob " << knob << ", val " << val <<  ", key period\n";
+					keypress(def.vkplus, true, true);
+				}
 
-				}
-				oldKnobValue = val;
+				def.lastValue = val;
+				g_knobs[knob] = def;
 			}
 			else
 			{
 				std::cout << "knob " << knob << ", val " << val << "\n";
 			}
 		}
-		else
-		{
-			for (unsigned int i = 0; i < nBytes; i++)
-				std::cout << "Byte " << i << " = " << (int)message->at(i) << ", ";
-			if (nBytes > 0)
-				std::cout << "stamp = " << deltatime << std::endl;
-		}
+	}
+
+	if (LOGALL)
+	{
+		for (unsigned int i = 0; i < nBytes; i++)
+			std::cout << "Byte " << i << " = " << (int)message->at(i) << ", ";
+		if (nBytes > 0)
+			std::cout << "stamp = " << deltatime << std::endl;
 	}
 }
 
@@ -282,14 +319,11 @@ int main()
 		Sleep(200);
 
 	std::cout << "Reading MIDI input from " << midiin->getPortName(0) << "...\n";
-	std::cout << "Press Q to quit.\n\n";
 	midiin->openPort(0);
 
 	while (midiin->getPortCount() > 0)
 	{
 		Sleep(200);
-		if (GetAsyncKeyState('Q') & 0x8000)
-			break;
 	}
 
 	midiin->closePort();
