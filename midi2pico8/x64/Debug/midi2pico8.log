@@ -1,0 +1,5 @@
+﻿  RtMidi.cpp
+  midi2pico8.cpp
+D:\CloudGuigui\Documents\Hobbes\Programmation\Pico\midi2pico8fixed\midi2pico8\midi2pico8.cpp(23,39): warning C4267: 'initialisation' : conversion de 'size_t' en 'unsigned int', perte possible de données
+  Génération de code en cours...
+  midi2pico8.vcxproj -> D:\CloudGuigui\Documents\Hobbes\Programmation\Pico\midi2pico8fixed\msw\x64\Debug\midi2pico8.exe
