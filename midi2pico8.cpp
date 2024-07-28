@@ -3,8 +3,8 @@
 
 #include <iostream>
 #include <cstdlib>
-#include <Windows.h>
 #include <map>
+#include <Windows.h>
 
 #include "RtMidi.h"
 
@@ -67,6 +67,9 @@ std::map<short, s_key> g_keys = {
 	{VK_OEM_PERIOD,{0x34,false,"."}},
 	{VK_LMENU,{0x38,false,"Alt"}},
 	{VK_LCONTROL,{0x1d,false,"Ctrl"}},
+	{VK_LSHIFT,{0x2a,false,"Shift"}},
+	{VK_TAB,{0x0f,false,"Tab"}},
+	{VK_BACK,{0x0e,false,"Backspace"}},
 	{VK_NUMPAD1,{0x4f,false,"Numpad1"}},
 	{VK_NUMPAD2,{0x50,false,"Numpad2"}},
 	{VK_NUMPAD3,{0x51,false,"Numpad3"}},
@@ -145,10 +148,10 @@ std::map<char, short> g_pads = {
 	{38,VK_LEFT},
 	{42,VK_DOWN},
 	{46,VK_RIGHT},
-	{50,VK_LMENU},
-	{45,VK_PRIOR},
+	{50,VK_LSHIFT},
+	{45,VK_LMENU},
 	{51,VK_UP},
-	{49,VK_NEXT},
+	{49,VK_TAB},
 };
 
 std::map<char, short> g_numpadPads = {
