@@ -15,13 +15,16 @@
 #define MESSAGE_TYPE_BTN 191
 #define MESSAGE_TYPE_KNOB 176
 
+#define PADMODE_BTN 113
+
 #define SPECIAL_VK_NUMPAD_SET -1
 #define SPECIAL_VK_NUMPAD_SEND -2
+#define MAX_NUMPAD_VALUE 7
 
 std::vector< unsigned char >* old_message;
 
 int g_lastNumpadValue = 0;
-bool g_numpad=false;
+bool g_padsAsNumpad=false;
 
 // source for scan codes : https://learn.microsoft.com/en-us/previous-versions/visualstudio/visual-studio-6.0/aa299374(v=vs.60)
 // source for virtual keys : https://learn.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
@@ -39,15 +42,9 @@ typedef struct s_knob
 	short vkminus;
 	short vkplus;
 
-	// > 0 for "finite knobs", between 0 and 127
-	// < 0 for "infinite knobs", assumed to send < 64 for - and > 64 for +. (=> cc 146 on Axiom 25)
-	short lastValue; 
-};
-
-typedef struct s_infknob
-{
-	short vkminus;
-	short vkplus;
+	// > 0 for "finite knobs". Will be used to store the last sent value.
+	// < 0 for "infinite knobs". These knobs are assumed to send < 64 for - and > 64 for +. (=> cc 146 on Axiom 25)
+	short data0; 
 };
 
 std::map<short, s_key> g_keys = {
@@ -151,7 +148,7 @@ std::map<char, short> g_pads = {
 	{49,VK_NEXT},
 };
 
-std::map<char, short> g_numpads = {
+std::map<char, short> g_numpadPads = {
 	{36,VK_NUMPAD4},
 	{38,VK_NUMPAD5},
 	{42,VK_NUMPAD6},
@@ -163,7 +160,6 @@ std::map<char, short> g_numpads = {
 };
 
 std::map<char, short> g_btns = {
-	{113,0},
 	{114,VK_SUBTRACT},	// previous sound or pattern
 	{115,VK_ADD},		// next sound or pattern
 	{116,VK_DELETE},	// delete note
@@ -184,7 +180,7 @@ std::map<char, short> g_btns = {
 
 std::map<char, s_knob> g_knobs = {
 	{74,{ VK_OEM_COMMA, VK_OEM_PERIOD, -1 }}, // sfx speed
-	{75,{ SPECIAL_VK_NUMPAD_SET, SPECIAL_VK_NUMPAD_SET, 8 }}, // numpad set
+	{75,{ SPECIAL_VK_NUMPAD_SET, SPECIAL_VK_NUMPAD_SET}}, // numpad set
 	{76,{ SPECIAL_VK_NUMPAD_SEND, SPECIAL_VK_NUMPAD_SEND}}, // numpad send
 	{78,{ VK_UP, VK_DOWN, -1 }}, // up/down
 	{79,{ VK_LEFT, VK_RIGHT, -1 }}, // left/right
@@ -213,15 +209,20 @@ bool keypress(short vk, bool press, bool release)
 			if (press)
 			{
 				SendInput(1, &ip, sizeof(INPUT));
-				std::cout << "press " << key.name << "\n";
 			}
 
 			if (release)
 			{
 				ip.ki.dwFlags |= KEYEVENTF_KEYUP;
 				SendInput(1, &ip, sizeof(INPUT));
-				std::cout << "release " << key.name << "\n";
 			}
+
+			if (press and release)
+				std::cout << "hit " << key.name << "\n";
+			else if (press)
+				std::cout << "press " << key.name << "\n";
+			else if (release)
+				std::cout << "release " << key.name << "\n";
 
 			return true;
 		}
@@ -237,14 +238,15 @@ void mycallback(double deltatime, std::vector< unsigned char > *message, void *u
 		old_message = NULL;
 		return;
 	}
+
 	unsigned int nBytes = message->size();
 	int type = message->at(0);
 	if (type == MESSAGE_TYPE_NOTE)
 	{
 		int note = message->at(1);
-		short vk = g_notes.at(note);
-		if (vk!=0)
+		if (g_notes.find(note) != g_notes.end())
 		{
+			short vk = g_notes.at(note);
 			if (!keypress(vk,true,true))
 			{
 				std::cout << "note " << note << "\n";
@@ -253,103 +255,105 @@ void mycallback(double deltatime, std::vector< unsigned char > *message, void *u
 
 		old_message = message;
 	}
-	else
+	else if (type == MESSAGE_TYPE_PAD)
 	{
-		// only correct for axiom 25 with default settings
-		if (type == MESSAGE_TYPE_PAD)
+		int pad = message->at(1);
+		bool press = message->at(2) != 0;
+		short vk;
+		std::map<char, short>* padsToUse;
+		if (g_padsAsNumpad)
 		{
-			int pad = message->at(1);
-			bool press = message->at(2) != 0;
-			short vk;
-			if (g_numpad)
-			{
-				vk = g_numpads.at(pad);
-			}
-			else
-			{
-				vk = g_pads.at(pad);
-			}
+			padsToUse = &g_numpadPads;
+		}
+		else
+		{
+			padsToUse = &g_pads;
+		}
+
+		if (padsToUse->find(pad) != padsToUse->end())
+		{
+			short vk = padsToUse->at(pad);
 			if (!keypress(vk, press, !press))
 			{
 				std::cout << "pad " << pad << "\n";
 			}
 		}
-		else if (type == MESSAGE_TYPE_BTN)
+	}
+	else if (type == MESSAGE_TYPE_BTN)
+	{
+		int btnVal = (int)message->at(1);
+		bool press = message->at(2) != 0;
+		if (btnVal == PADMODE_BTN)
 		{
-			int btnVal = (int)message->at(1);
-			bool press = message->at(2) != 0;
-			short vk = g_btns.at(btnVal);
-			if (!keypress(vk, press, !press))
+			g_padsAsNumpad = press;
+			if (g_padsAsNumpad)
 			{
-				if (btnVal == 113)
-				{
-					g_numpad = press;
-					if (g_numpad)
-					{
-						std::cout << "pads in number mode\n";
-					}
-					else
-					{
-						std::cout << "pads in cursor mode\n";
-					}
-				}
-				else
-				{
-					std::cout << "button " << btnVal << "\n";
-				}
-			}
-		}
-		else if (type == MESSAGE_TYPE_KNOB)
-		{
-			int knob = (int)message->at(1);
-			int val = (int)message->at(2);
-
-			if (g_knobs.find(knob) != g_knobs.end())
-			{
-				s_knob def = g_knobs.at(knob);
-				if (def.vkminus == SPECIAL_VK_NUMPAD_SET)
-				{
-					val = val % def.lastValue;
-					if (val != g_lastNumpadValue)
-					{
-						g_lastNumpadValue = val;
-						std::cout << "virtual numpad set to " << g_lastNumpadValue << "\n";
-					}
-				}
-				else if (def.vkminus == SPECIAL_VK_NUMPAD_SEND)
-				{
-					keypress(VK_NUMPAD0 + g_lastNumpadValue, true, true);
-				}
-				else if (def.lastValue >= 0)
-				{
-					if (val <= def.lastValue)
-					{
-						keypress(def.vkminus, true, true);
-					}
-					else if (val > def.lastValue)
-					{
-						keypress(def.vkplus, true, true);
-					}
-
-					def.lastValue = val;
-					g_knobs[knob] = def;
-				}
-				else
-				{
-					if (val <= 64)
-					{
-						keypress(def.vkminus, true, true);
-					}
-					else
-					{
-						keypress(def.vkplus, true, true);
-					}
-				}
+				std::cout << "pads in number mode\n";
 			}
 			else
 			{
-				std::cout << "knob " << knob << ", val " << val << "\n";
+				std::cout << "pads in cursor mode\n";
 			}
+		}
+		else if (g_btns.find(btnVal) != g_btns.end())
+		{
+			short vk = g_btns.at(btnVal);
+			if (!keypress(vk, press, !press))
+			{
+				std::cout << "button " << btnVal << "\n";
+			}
+		}
+	}
+	else if (type == MESSAGE_TYPE_KNOB)
+	{
+		int knob = (int)message->at(1);
+		int val = (int)message->at(2);
+
+		if (g_knobs.find(knob) != g_knobs.end())
+		{
+			s_knob def = g_knobs.at(knob);
+			if (def.vkminus == SPECIAL_VK_NUMPAD_SET)
+			{
+				val = val % (MAX_NUMPAD_VALUE+1);
+				if (val != g_lastNumpadValue)
+				{
+					g_lastNumpadValue = val;
+					std::cout << "virtual numpad set to " << g_lastNumpadValue << "\n";
+				}
+			}
+			else if (def.vkminus == SPECIAL_VK_NUMPAD_SEND)
+			{
+				keypress(VK_NUMPAD0 + g_lastNumpadValue, true, true);
+			}
+			else if (def.data0 >= 0)
+			{
+				if (val <= def.data0)
+				{
+					keypress(def.vkminus, true, true);
+				}
+				else if (val > def.data0)
+				{
+					keypress(def.vkplus, true, true);
+				}
+
+				def.data0 = val;
+				g_knobs[knob] = def;
+			}
+			else
+			{
+				if (val <= 64)
+				{
+					keypress(def.vkminus, true, true);
+				}
+				else
+				{
+					keypress(def.vkplus, true, true);
+				}
+			}
+		}
+		else
+		{
+			std::cout << "knob " << knob << ", val " << val << "\n";
 		}
 	}
 
