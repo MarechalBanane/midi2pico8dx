@@ -25,12 +25,24 @@
 #define SPECIAL_VK_NUMPAD_SEND -2
 #define MAX_NUMPAD_VALUE 7
 
-int g_lastNumpadValue = 0;
-bool g_padsAsNumpad=false;
-
 // source for scan codes : https://learn.microsoft.com/en-us/previous-versions/visualstudio/visual-studio-6.0/aa299374(v=vs.60)
 // source for virtual keys : https://learn.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
 // source for extended keys : https://learn.microsoft.com/en-us/windows/win32/inputdev/about-keyboard-input#extended-key-flag
+
+// On Axiom 25, by default:
+// "finite" knobs (0-127) are cc 74 through 81.
+// "infinite" knobs (+/-) are cc 146 through 152.
+// 146 through 149 use cc defined in data3 (0 by default).
+// 146: + = 65, - = 63
+// 147: + =  1, - = 127
+// 148: + = 65, - = 1 (redundant)
+// 149: + = 1, - = 65 (redundant)
+// 150 uses cc 96 (+) and 97 (-) with a constant val of 0.
+// 151 uses cc 96 (+) and 97 (-) with a constant val of 1. cc 100 and 101 are set to 0 (data2) and 127 (data3) respectively before a series of values.
+// 152 uses cc 96 (+) and 97 (-) with a constant val of 1. cc 98 and 99 are set to 0 (data2) and 127 (data3) respectively before a series of values.
+
+int g_lastNumpadValue = 0;
+bool g_padsAsNumpad=false;
 
 typedef struct s_key
 {
@@ -172,18 +184,6 @@ std::map<char, short> g_btns = {
 	{117,VK_RETURN},	// insert note
 	{118,VK_SPACE},		// play/pause
 };
-
-// On Axiom 25, by default:
-// "finite" knobs (0-127) are cc 74 through 81.
-// "infinite" knobs (+/-) are cc 146 through 152.
-// 146 through 149 use cc defined in data3 (0 by default).
-// 146: + = 65, - = 63
-// 147: + =  1, - = 127
-// 148: + = 65, - = 1 (redundant)
-// 149: + = 1, - = 65 (redundant)
-// 150 uses cc 96 (+) and 97 (-) with a constant val of 0.
-// 151 uses cc 96 (+) and 97 (-) with a constant val of 1. cc 100 and 101 are set to 0 (data2) and 127 (data3) respectively before a series of values.
-// 152 uses cc 96 (+) and 97 (-) with a constant val of 1. cc 98 and 99 are set to 0 (data2) and 127 (data3) respectively before a series of values.
 
 std::map<char, s_knob> g_knobs = {
 	{74,{ VK_OEM_COMMA, VK_OEM_PERIOD, INFINITE_KNOB }}, // sfx speed
