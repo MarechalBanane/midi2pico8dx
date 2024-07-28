@@ -8,7 +8,7 @@
 
 #include "RtMidi.h"
 
-#define LOGALL false
+#define LOG_ALL false
 
 #define MESSAGE_TYPE_NOTE 144
 #define MESSAGE_TYPE_PAD 153
@@ -17,11 +17,13 @@
 
 #define PADMODE_BTN 113
 
+#define FINITE_KNOB 0
+#define INFINITE_KNOB -1
+#define INFINITE_KNOB_MIDVALUE 64
+
 #define SPECIAL_VK_NUMPAD_SET -1
 #define SPECIAL_VK_NUMPAD_SEND -2
 #define MAX_NUMPAD_VALUE 7
-
-std::vector< unsigned char >* old_message;
 
 int g_lastNumpadValue = 0;
 bool g_padsAsNumpad=false;
@@ -42,8 +44,9 @@ typedef struct s_knob
 	short vkminus;
 	short vkplus;
 
-	// > 0 for "finite knobs". Will be used to store the last sent value.
+	// >= 0 for "finite knobs". Will be used to store the last sent value.
 	// < 0 for "infinite knobs". These knobs are assumed to send < 64 for - and > 64 for +. (=> cc 146 on Axiom 25)
+	// unused in SPECIAL_VK_NUMPAD case.
 	short data0; 
 };
 
@@ -167,23 +170,24 @@ std::map<char, short> g_btns = {
 	{118,VK_SPACE},		// play/pause
 };
 
+// On Axiom 25, by default:
 // "finite" knobs (0-127) are cc 74 through 81.
 // "infinite" knobs (+/-) are cc 146 through 152.
-// 146 through 149 use knob defined in data3 (0 by default).
+// 146 through 149 use cc defined in data3 (0 by default).
 // 146: + = 65, - = 63
 // 147: + =  1, - = 127
 // 148: + = 65, - = 1 (redundant)
 // 149: + = 1, - = 65 (redundant)
-// 150 uses knobs 96 (+) and 97 (-) with a constant val of 0.
-// 151 uses knobs 96 (+) and 97 (-) with a constant val of 1. Knobs 100 and 101 are set to 0 (data2) and 127 (data3) respectively before a series of values.
-// 152 uses knobs 96 (+) and 97 (-) with a constant val of 1. Knobs 98 and 99 are set to 0 (data2) and 127 (data3) respectively before a series of values.
+// 150 uses cc 96 (+) and 97 (-) with a constant val of 0.
+// 151 uses cc 96 (+) and 97 (-) with a constant val of 1. cc 100 and 101 are set to 0 (data2) and 127 (data3) respectively before a series of values.
+// 152 uses cc 96 (+) and 97 (-) with a constant val of 1. cc 98 and 99 are set to 0 (data2) and 127 (data3) respectively before a series of values.
 
 std::map<char, s_knob> g_knobs = {
-	{74,{ VK_OEM_COMMA, VK_OEM_PERIOD, -1 }}, // sfx speed
+	{74,{ VK_OEM_COMMA, VK_OEM_PERIOD, INFINITE_KNOB }}, // sfx speed
 	{75,{ SPECIAL_VK_NUMPAD_SET, SPECIAL_VK_NUMPAD_SET}}, // numpad set
 	{76,{ SPECIAL_VK_NUMPAD_SEND, SPECIAL_VK_NUMPAD_SEND}}, // numpad send
-	{78,{ VK_UP, VK_DOWN, -1 }}, // up/down
-	{79,{ VK_LEFT, VK_RIGHT, -1 }}, // left/right
+	{78,{ VK_UP, VK_DOWN, INFINITE_KNOB }}, // up/down
+	{79,{ VK_LEFT, VK_RIGHT, INFINITE_KNOB }}, // left/right
 };
 
 bool keypress(short vk, bool press, bool release)
@@ -233,12 +237,6 @@ bool keypress(short vk, bool press, bool release)
 
 void mycallback(double deltatime, std::vector< unsigned char > *message, void *userData)
 {
-	if (message == old_message)
-	{
-		old_message = NULL;
-		return;
-	}
-
 	unsigned int nBytes = message->size();
 	int type = message->at(0);
 	if (type == MESSAGE_TYPE_NOTE)
@@ -247,19 +245,16 @@ void mycallback(double deltatime, std::vector< unsigned char > *message, void *u
 		if (g_notes.find(note) != g_notes.end())
 		{
 			short vk = g_notes.at(note);
-			if (!keypress(vk,true,true))
+			bool press = message->at(2) != 0;
+			if (!keypress(vk, press,!press))
 			{
 				std::cout << "note " << note << "\n";
 			}
 		}
-
-		old_message = message;
 	}
 	else if (type == MESSAGE_TYPE_PAD)
 	{
 		int pad = message->at(1);
-		bool press = message->at(2) != 0;
-		short vk;
 		std::map<char, short>* padsToUse;
 		if (g_padsAsNumpad)
 		{
@@ -273,6 +268,7 @@ void mycallback(double deltatime, std::vector< unsigned char > *message, void *u
 		if (padsToUse->find(pad) != padsToUse->end())
 		{
 			short vk = padsToUse->at(pad);
+			bool press = message->at(2) != 0;
 			if (!keypress(vk, press, !press))
 			{
 				std::cout << "pad " << pad << "\n";
@@ -341,7 +337,7 @@ void mycallback(double deltatime, std::vector< unsigned char > *message, void *u
 			}
 			else
 			{
-				if (val <= 64)
+				if (val <= INFINITE_KNOB_MIDVALUE)
 				{
 					keypress(def.vkminus, true, true);
 				}
@@ -357,7 +353,7 @@ void mycallback(double deltatime, std::vector< unsigned char > *message, void *u
 		}
 	}
 
-	if (LOGALL)
+	if (LOG_ALL)
 	{
 		for (unsigned int i = 0; i < nBytes; i++)
 			std::cout << "Byte " << i << " = " << (int)message->at(i) << ", ";
