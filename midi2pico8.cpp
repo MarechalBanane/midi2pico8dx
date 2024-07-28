@@ -7,6 +7,7 @@
 #include <Windows.h>
 
 #include "RtMidi.h"
+#include "json.hpp"
 
 #define LOG_ALL false
 
