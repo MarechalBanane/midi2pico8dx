@@ -12,6 +12,7 @@
 
 using json = nlohmann::json;
 
+#define CONFIG_FILE_NAME "config.json"
 #define SPECIAL_VK_NUMPAD_SET -1
 #define SPECIAL_VK_NUMPAD_SEND -2
 #define MAX_NUMPAD_VALUE 7
@@ -63,18 +64,14 @@ typedef struct s_knob
 #define JSTR_MESSAGE_KNOB		"message_status_knob"
 #define JSTR_NUMPAD_MODE_CC		"numpad_mode_cc"
 #define JSTR_INF_KNOB_MIDVALUE	"infinite_knob_midvalue"
+#define JSTR_NOTE_INPUTS		"note_inputs"
+#define JSTR_PAD_INPUTS			"pad_inputs"
+#define JSTR_BTN_INPUTS			"btn_inputs"
+#define JSTR_KNOB_INPUTS		"knob_inputs"
+#define JSTR_NOTE				"note"
+#define JSTR_KEY				"key"
 
-json c_defaultConf =
-{
-	{JSTR_LOG_MIDI_MESSAGES,false},
-	{JSTR_MESSAGE_NOTE,0x90},
-	{JSTR_MESSAGE_PAD,0x99},
-	{JSTR_MESSAGE_BTN,0xbf},
-	{JSTR_MESSAGE_KNOB,0xb0},
-	{JSTR_NUMPAD_MODE_CC,113},
-	{JSTR_INF_KNOB_MIDVALUE,64},
-};
-
+// hardcoded specification of which inputs are available in JSON
 std::map<std::string, short> g_jstrToVk =
 {
 	{"1", '1'},
@@ -144,6 +141,48 @@ std::map<std::string, short> g_jstrToVk =
 	{"numpad0", VK_NUMPAD0},
 };
 
+json c_defaultConf =
+{
+	{JSTR_LOG_MIDI_MESSAGES,false},
+	{JSTR_MESSAGE_NOTE,0x90},
+	{JSTR_MESSAGE_PAD,0x99},
+	{JSTR_MESSAGE_BTN,0xbf},
+	{JSTR_MESSAGE_KNOB,0xb0},
+	{JSTR_NUMPAD_MODE_CC,113},
+	{JSTR_INF_KNOB_MIDVALUE,64},
+	{JSTR_NOTE_INPUTS,{
+		{{JSTR_NOTE, 48}, {JSTR_KEY, "z"}},
+		{{JSTR_NOTE, 49}, {JSTR_KEY, "s"}},
+		{{JSTR_NOTE, 50}, {JSTR_KEY, "x"}},
+		{{JSTR_NOTE, 51}, {JSTR_KEY, "d"}},
+		{{JSTR_NOTE, 52}, {JSTR_KEY, "c"}},
+		{{JSTR_NOTE, 53}, {JSTR_KEY, "v"}},
+		{{JSTR_NOTE, 54}, {JSTR_KEY, "g"}},
+		{{JSTR_NOTE, 55}, {JSTR_KEY, "b"}},
+		{{JSTR_NOTE, 56}, {JSTR_KEY, "h"}},
+		{{JSTR_NOTE, 57}, {JSTR_KEY, "n"}},
+		{{JSTR_NOTE, 58}, {JSTR_KEY, "j"}},
+		{{JSTR_NOTE, 59}, {JSTR_KEY, "m"}},
+		{{JSTR_NOTE, 60}, {JSTR_KEY, "q"}},
+		{{JSTR_NOTE, 61}, {JSTR_KEY, "2"}},
+		{{JSTR_NOTE, 62}, {JSTR_KEY, "w"}},
+		{{JSTR_NOTE, 63}, {JSTR_KEY, "3"}},
+		{{JSTR_NOTE, 64}, {JSTR_KEY, "e"}},
+		{{JSTR_NOTE, 65}, {JSTR_KEY, "r"}},
+		{{JSTR_NOTE, 66}, {JSTR_KEY, "5"}},
+		{{JSTR_NOTE, 67}, {JSTR_KEY, "t"}},
+		{{JSTR_NOTE, 68}, {JSTR_KEY, "6"}},
+		{{JSTR_NOTE, 69}, {JSTR_KEY, "y"}},
+		{{JSTR_NOTE, 70}, {JSTR_KEY, "7"}},
+		{{JSTR_NOTE, 71}, {JSTR_KEY, "u"}},
+		{{JSTR_NOTE, 72}, {JSTR_KEY, "i"}},
+		{{JSTR_NOTE, 73}, {JSTR_KEY, "9"}},
+		{{JSTR_NOTE, 74}, {JSTR_KEY, "o"}},
+		{{JSTR_NOTE, 75}, {JSTR_KEY, "0"}},
+		{{JSTR_NOTE, 76}, {JSTR_KEY, "p"}},
+	}},
+};
+
 std::map<short, s_key> g_keys = {
 	{VK_DOWN,{0x50,true,"Down"}},
 	{VK_NEXT,{0x51,true,"PgDown"}},
@@ -203,38 +242,6 @@ std::map<short, s_key> g_keys = {
 	{'O',{0x18,false,"O"}},
 	{'0',{0xb,false,"0"}},
 	{'P',{0x19,false,"P"}},
-};
-
-std::map<char, char> g_notes = {
-	{48,'Z'},
-	{49,'S'},
-	{50,'X'},
-	{51,'D'},
-	{52,'C'},
-	{53,'V'},
-	{54,'G'},
-	{55,'B'},
-	{56,'H'},
-	{57,'N'},
-	{58,'J'},
-	{59,'M'},
-	{60,'Q'},
-	{61,'2'},
-	{62,'W'},
-	{63,'3'},
-	{64,'E'},
-	{65,'R'},
-	{66,'5'},
-	{67,'T'},
-	{68,'6'},
-	{69,'Y'},
-	{70,'7'},
-	{71,'U'},
-	{72,'I'},
-	{73,'9'},
-	{74,'O'},
-	{75,'0'},
-	{76,'P'},
 };
 
 std::map<char, short> g_pads = {
@@ -328,15 +335,27 @@ void mycallback(double deltatime, std::vector< unsigned char > *message, void *u
 	int type = message->at(0);
 	if (type == g_currentConf->at(JSTR_MESSAGE_NOTE))
 	{
+		bool found = false;
 		int note = message->at(1);
-		if (g_notes.find(note) != g_notes.end())
+		if (g_currentConf->contains(JSTR_NOTE_INPUTS))
 		{
-			short vk = g_notes.at(note);
-			bool press = message->at(2) != 0;
-			if (!keypress(vk, press,!press))
+			json noteArray = g_currentConf->at(JSTR_NOTE_INPUTS);
+			for (int i = 0; i < noteArray.size(); ++i)
 			{
-				std::cout << "note " << note << "\n";
+				json noteData = noteArray[i];
+				if (noteData.at(JSTR_NOTE) == note)
+				{
+					auto key = noteData.at(JSTR_KEY);
+					short vk = g_jstrToVk.at(key);
+					bool press = message->at(2) != 0;
+					found = keypress(vk, press, !press);
+					break;
+				}
 			}
+		}
+		if (!found)
+		{
+			std::cout << "note " << note << "\n";
 		}
 	}
 	else if (type == g_currentConf->at(JSTR_MESSAGE_PAD))
@@ -472,11 +491,11 @@ int main()
 
 	// load config file
 	json data;
-	std::cout << "Loading 'config.txt'...\n";
-	std::ifstream confFile("config.txt");
+	std::cout << "Loading '" << CONFIG_FILE_NAME << "'...\n";
+	std::ifstream confFile(CONFIG_FILE_NAME);
 	if (confFile.fail())
 	{
-		std::cout << "Could not load 'config.txt', revert to default config.\n";
+		std::cout << "Could not load '" << CONFIG_FILE_NAME << "', revert to default config.\n";
 		g_currentConf = &c_defaultConf;
 	}
 	else
@@ -493,6 +512,8 @@ int main()
 			g_currentConf = &c_defaultConf;
 		}
 	}
+
+	confFile.close();
 
 	// setup midi callback
 	RtMidiIn *midiin = new RtMidiIn();
