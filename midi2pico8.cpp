@@ -9,6 +9,8 @@
 #include "RtMidi.h"
 #include "json.hpp"
 
+using json = nlohmann::json;
+
 #define LOG_ALL false
 
 #define MESSAGE_TYPE_NOTE 144
@@ -122,6 +124,11 @@ std::map<short, s_key> g_keys = {
 	{'O',{0x18,false,"O"}},
 	{'0',{0xb,false,"0"}},
 	{'P',{0x19,false,"P"}},
+};
+
+json g_TestData =
+{
+	{48,'Z'},
 };
 
 std::map<char, char> g_notes = {
