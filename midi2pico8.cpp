@@ -15,8 +15,12 @@
 #define MESSAGE_TYPE_BTN 191
 #define MESSAGE_TYPE_KNOB 176
 
+#define SPECIAL_VK_NUMPAD_SET -1
+#define SPECIAL_VK_NUMPAD_SEND -2
+
 std::vector< unsigned char >* old_message;
 
+int g_lastNumpadValue = 0;
 bool g_numpad=false;
 
 // source for scan codes : https://learn.microsoft.com/en-us/previous-versions/visualstudio/visual-studio-6.0/aa299374(v=vs.60)
@@ -34,7 +38,16 @@ typedef struct s_knob
 {
 	short vkminus;
 	short vkplus;
-	char lastValue;
+
+	// > 0 for "finite knobs", between 0 and 127
+	// < 0 for "infinite knobs", assumed to send < 64 for - and > 64 for +. (=> cc 146 on Axiom 25)
+	short lastValue; 
+};
+
+typedef struct s_infknob
+{
+	short vkminus;
+	short vkplus;
 };
 
 std::map<short, s_key> g_keys = {
@@ -139,26 +152,42 @@ std::map<char, short> g_pads = {
 };
 
 std::map<char, short> g_numpads = {
-	{36,VK_NUMPAD0},
-	{38,VK_NUMPAD1},
-	{42,VK_NUMPAD2},
-	{46,VK_NUMPAD3},
-	{50,VK_NUMPAD4},
-	{45,VK_NUMPAD5},
-	{51,VK_NUMPAD6},
-	{49,VK_NUMPAD7},
+	{36,VK_NUMPAD4},
+	{38,VK_NUMPAD5},
+	{42,VK_NUMPAD6},
+	{46,VK_NUMPAD7},
+	{50,VK_NUMPAD0},
+	{45,VK_NUMPAD1},
+	{51,VK_NUMPAD2},
+	{49,VK_NUMPAD3},
 };
 
 std::map<char, short> g_btns = {
 	{113,0},
-	{114,VK_SUBTRACT},
-	{115,VK_ADD},
-	{116,VK_DELETE},
-	{117,VK_RETURN},
-	{118,VK_SPACE},
+	{114,VK_SUBTRACT},	// previous sound or pattern
+	{115,VK_ADD},		// next sound or pattern
+	{116,VK_DELETE},	// delete note
+	{117,VK_RETURN},	// insert note
+	{118,VK_SPACE},		// play/pause
 };
+
+// "finite" knobs (0-127) are cc 74 through 81.
+// "infinite" knobs (+/-) are cc 146 through 152.
+// 146 through 149 use knob defined in data3 (0 by default).
+// 146: + = 65, - = 63
+// 147: + =  1, - = 127
+// 148: + = 65, - = 1 (redundant)
+// 149: + = 1, - = 65 (redundant)
+// 150 uses knobs 96 (+) and 97 (-) with a constant val of 0.
+// 151 uses knobs 96 (+) and 97 (-) with a constant val of 1. Knobs 100 and 101 are set to 0 (data2) and 127 (data3) respectively before a series of values.
+// 152 uses knobs 96 (+) and 97 (-) with a constant val of 1. Knobs 98 and 99 are set to 0 (data2) and 127 (data3) respectively before a series of values.
+
 std::map<char, s_knob> g_knobs = {
-	{74,{ VK_OEM_COMMA, VK_OEM_PERIOD, 0 }},
+	{74,{ VK_OEM_COMMA, VK_OEM_PERIOD, -1 }}, // sfx speed
+	{75,{ SPECIAL_VK_NUMPAD_SET, SPECIAL_VK_NUMPAD_SET, 8 }}, // numpad set
+	{76,{ SPECIAL_VK_NUMPAD_SEND, SPECIAL_VK_NUMPAD_SEND}}, // numpad send
+	{78,{ VK_UP, VK_DOWN, -1 }}, // up/down
+	{79,{ VK_LEFT, VK_RIGHT, -1 }}, // left/right
 };
 
 bool keypress(short vk, bool press, bool release)
@@ -275,20 +304,47 @@ void mycallback(double deltatime, std::vector< unsigned char > *message, void *u
 			int knob = (int)message->at(1);
 			int val = (int)message->at(2);
 
-			s_knob def = g_knobs.at(knob);
-			if (def.vkminus != 0)
+			if (g_knobs.find(knob) != g_knobs.end())
 			{
-				if (val <= def.lastValue)
+				s_knob def = g_knobs.at(knob);
+				if (def.vkminus == SPECIAL_VK_NUMPAD_SET)
 				{
-					keypress(def.vkminus,true, true);
+					val = val % def.lastValue;
+					if (val != g_lastNumpadValue)
+					{
+						g_lastNumpadValue = val;
+						std::cout << "virtual numpad set to " << g_lastNumpadValue << "\n";
+					}
 				}
-				else if (val > def.lastValue)
+				else if (def.vkminus == SPECIAL_VK_NUMPAD_SEND)
 				{
-					keypress(def.vkplus, true, true);
+					keypress(VK_NUMPAD0 + g_lastNumpadValue, true, true);
 				}
+				else if (def.lastValue >= 0)
+				{
+					if (val <= def.lastValue)
+					{
+						keypress(def.vkminus, true, true);
+					}
+					else if (val > def.lastValue)
+					{
+						keypress(def.vkplus, true, true);
+					}
 
-				def.lastValue = val;
-				g_knobs[knob] = def;
+					def.lastValue = val;
+					g_knobs[knob] = def;
+				}
+				else
+				{
+					if (val <= 64)
+					{
+						keypress(def.vkminus, true, true);
+					}
+					else
+					{
+						keypress(def.vkplus, true, true);
+					}
+				}
 			}
 			else
 			{
