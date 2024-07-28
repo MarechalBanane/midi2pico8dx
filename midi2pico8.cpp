@@ -2,6 +2,7 @@
 //
 
 #include <iostream>
+#include <fstream>
 #include <cstdlib>
 #include <map>
 #include <Windows.h>
@@ -10,19 +11,6 @@
 #include "json.hpp"
 
 using json = nlohmann::json;
-
-#define LOG_ALL false
-
-#define MESSAGE_TYPE_NOTE 144
-#define MESSAGE_TYPE_PAD 153
-#define MESSAGE_TYPE_BTN 191
-#define MESSAGE_TYPE_KNOB 176
-
-#define PADMODE_BTN 113
-
-#define FINITE_KNOB 0
-#define INFINITE_KNOB -1
-#define INFINITE_KNOB_MIDVALUE 64
 
 #define SPECIAL_VK_NUMPAD_SET -1
 #define SPECIAL_VK_NUMPAD_SEND -2
@@ -63,6 +51,28 @@ typedef struct s_knob
 	// < 0 for "infinite knobs". These knobs are assumed to send < 64 for - and > 64 for +. (=> cc 146 on Axiom 25)
 	// unused in SPECIAL_VK_NUMPAD case.
 	short data0; 
+};
+
+#define FINITE_KNOB 0
+#define INFINITE_KNOB -1
+
+#define JSTR_LOG_MIDI_MESSAGES	"log_midi_messages"
+#define JSTR_MESSAGE_NOTE		"message_status_note"
+#define JSTR_MESSAGE_PAD		"message_status_pad"
+#define JSTR_MESSAGE_BTN		"message_status_btn"
+#define JSTR_MESSAGE_KNOB		"message_status_knob"
+#define JSTR_NUMPAD_MODE_CC		"numpad_mode_cc"
+#define JSTR_INF_KNOB_MIDVALUE	"infinite_knob_midvalue"
+
+json c_defaultConf =
+{
+	{JSTR_LOG_MIDI_MESSAGES,false},
+	{JSTR_MESSAGE_NOTE,0x90},
+	{JSTR_MESSAGE_PAD,0x99},
+	{JSTR_MESSAGE_BTN,0xbf},
+	{JSTR_MESSAGE_KNOB,0xb0},
+	{JSTR_NUMPAD_MODE_CC,113},
+	{JSTR_INF_KNOB_MIDVALUE,64},
 };
 
 std::map<short, s_key> g_keys = {
@@ -124,11 +134,6 @@ std::map<short, s_key> g_keys = {
 	{'O',{0x18,false,"O"}},
 	{'0',{0xb,false,"0"}},
 	{'P',{0x19,false,"P"}},
-};
-
-json g_TestData =
-{
-	{48,'Z'},
 };
 
 std::map<char, char> g_notes = {
@@ -201,6 +206,8 @@ std::map<char, s_knob> g_knobs = {
 	{79,{ VK_LEFT, VK_RIGHT, INFINITE_KNOB }}, // left/right
 };
 
+json* g_currentConf = 0;
+
 bool keypress(short vk, bool press, bool release)
 {
 	if (vk != 0)
@@ -250,7 +257,7 @@ void mycallback(double deltatime, std::vector< unsigned char > *message, void *u
 {
 	unsigned int nBytes = message->size();
 	int type = message->at(0);
-	if (type == MESSAGE_TYPE_NOTE)
+	if (type == g_currentConf->at(JSTR_MESSAGE_NOTE))
 	{
 		int note = message->at(1);
 		if (g_notes.find(note) != g_notes.end())
@@ -263,7 +270,7 @@ void mycallback(double deltatime, std::vector< unsigned char > *message, void *u
 			}
 		}
 	}
-	else if (type == MESSAGE_TYPE_PAD)
+	else if (type == g_currentConf->at(JSTR_MESSAGE_PAD))
 	{
 		int pad = message->at(1);
 		std::map<char, short>* padsToUse;
@@ -286,11 +293,11 @@ void mycallback(double deltatime, std::vector< unsigned char > *message, void *u
 			}
 		}
 	}
-	else if (type == MESSAGE_TYPE_BTN)
+	else if (type == g_currentConf->at(JSTR_MESSAGE_BTN))
 	{
 		int btnVal = (int)message->at(1);
 		bool press = message->at(2) != 0;
-		if (btnVal == PADMODE_BTN)
+		if (btnVal == g_currentConf->at(JSTR_NUMPAD_MODE_CC))
 		{
 			g_padsAsNumpad = press;
 			if (g_padsAsNumpad)
@@ -311,7 +318,7 @@ void mycallback(double deltatime, std::vector< unsigned char > *message, void *u
 			}
 		}
 	}
-	else if (type == MESSAGE_TYPE_KNOB)
+	else if (type == g_currentConf->at(JSTR_MESSAGE_KNOB))
 	{
 		int knob = (int)message->at(1);
 		int val = (int)message->at(2);
@@ -348,7 +355,7 @@ void mycallback(double deltatime, std::vector< unsigned char > *message, void *u
 			}
 			else
 			{
-				if (val <= INFINITE_KNOB_MIDVALUE)
+				if (val <= g_currentConf->at(JSTR_INF_KNOB_MIDVALUE))
 				{
 					keypress(def.vkminus, true, true);
 				}
@@ -364,22 +371,64 @@ void mycallback(double deltatime, std::vector< unsigned char > *message, void *u
 		}
 	}
 
-	if (LOG_ALL)
+	if (g_currentConf->at(JSTR_LOG_MIDI_MESSAGES))
 	{
-		for (unsigned int i = 0; i < nBytes; i++)
-			std::cout << "Byte " << i << " = " << (int)message->at(i) << ", ";
-		if (nBytes > 0)
-			std::cout << "stamp = " << deltatime << std::endl;
+		if (nBytes == 3)
+		{
+			std::cout << "Status = " << (int)message->at(0) << ", ";
+			std::cout << "Data1 = " << (int)message->at(1) << ", ";
+			std::cout << "Data2 = " << (int)message->at(2) << "\n";
+		}
+		else if (nBytes > 0)
+		{
+			for (unsigned int i = 0; i < nBytes; i++)
+			{
+				std::cout << "Byte " << i << " = " << (int)message->at(i);
+				if (i < nBytes-1)
+				{
+					std::cout << ", ";
+				}
+			}
+
+			std::cout << "\n";
+		}
 	}
 }
 
 int main()
 {
+	std::cout << "==================\n";
+	std::cout << "* MIDI to PICO-8 *\n";
+	std::cout << "==================\n\n";
+
+	// load config file
+	json data;
+	std::cout << "Loading 'config.txt'...\n";
+	std::ifstream confFile("config.txt");
+	if (confFile.fail())
+	{
+		std::cout << "Could not load 'config.txt', revert to default config.\n";
+		g_currentConf = &c_defaultConf;
+	}
+	else
+	{
+		try
+		{
+			data = json::parse(confFile, nullptr, true, true);
+			g_currentConf = &data;
+		}
+		catch (json::parse_error& ex)
+		{
+			std::cerr << "parse error at byte " << ex.byte << ": " << ex.what() << std::endl;
+			std::cout << "Error while loading config file, revert to default config.\n";
+			g_currentConf = &c_defaultConf;
+		}
+	}
+
+	// setup midi callback
 	RtMidiIn *midiin = new RtMidiIn();
 	midiin->setCallback(&mycallback);
 	midiin->ignoreTypes(true, true, true);
-
-	std::cout << "MIDI to PICO-8\n\n";
 	std::cout << "Waiting for a MIDI input device...\n";
 
 	while (midiin->getPortCount() == 0)
