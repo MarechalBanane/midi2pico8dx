@@ -34,7 +34,7 @@ using json = nlohmann::json;
 // 152 uses cc 96 (+) and 97 (-) with a constant val of 1. cc 98 and 99 are set to 0 (data2) and 127 (data3) respectively before a series of values.
 
 int g_lastNumpadValue = 0;
-bool g_padsAsNumpad=false;
+bool g_padsMode1=false;
 
 typedef struct s_key
 {
@@ -62,14 +62,15 @@ typedef struct s_knob
 #define JSTR_MESSAGE_PAD		"message_status_pad"
 #define JSTR_MESSAGE_BTN		"message_status_btn"
 #define JSTR_MESSAGE_KNOB		"message_status_knob"
-#define JSTR_NUMPAD_MODE_CC		"numpad_mode_cc"
+#define JSTR_PAD_MODE_CC		"pad_mode_cc"
 #define JSTR_INF_KNOB_MIDVALUE	"infinite_knob_midvalue"
 #define JSTR_NOTE_INPUTS		"note_inputs"
-#define JSTR_PAD_INPUTS			"pad_inputs"
+#define JSTR_PAD0_INPUTS		"pad0_inputs"
+#define JSTR_PAD1_INPUTS		"pad1_inputs"
 #define JSTR_BTN_INPUTS			"btn_inputs"
 #define JSTR_KNOB_INPUTS		"knob_inputs"
-#define JSTR_NOTE				"note"
-#define JSTR_KEY				"key"
+#define JSTR_DATA				"data"
+#define JSTR_INPUT				"input"
 
 // hardcoded specification of which inputs are available in JSON
 std::map<std::string, short> g_jstrToVk =
@@ -141,6 +142,7 @@ std::map<std::string, short> g_jstrToVk =
 	{"numpad0", VK_NUMPAD0},
 };
 
+// hardcoded fallback configuration, if none can be loaded.
 json c_defaultConf =
 {
 	{JSTR_LOG_MIDI_MESSAGES,false},
@@ -148,41 +150,42 @@ json c_defaultConf =
 	{JSTR_MESSAGE_PAD,0x99},
 	{JSTR_MESSAGE_BTN,0xbf},
 	{JSTR_MESSAGE_KNOB,0xb0},
-	{JSTR_NUMPAD_MODE_CC,113},
+	{JSTR_PAD_MODE_CC,113},
 	{JSTR_INF_KNOB_MIDVALUE,64},
 	{JSTR_NOTE_INPUTS,{
-		{{JSTR_NOTE, 48}, {JSTR_KEY, "z"}},
-		{{JSTR_NOTE, 49}, {JSTR_KEY, "s"}},
-		{{JSTR_NOTE, 50}, {JSTR_KEY, "x"}},
-		{{JSTR_NOTE, 51}, {JSTR_KEY, "d"}},
-		{{JSTR_NOTE, 52}, {JSTR_KEY, "c"}},
-		{{JSTR_NOTE, 53}, {JSTR_KEY, "v"}},
-		{{JSTR_NOTE, 54}, {JSTR_KEY, "g"}},
-		{{JSTR_NOTE, 55}, {JSTR_KEY, "b"}},
-		{{JSTR_NOTE, 56}, {JSTR_KEY, "h"}},
-		{{JSTR_NOTE, 57}, {JSTR_KEY, "n"}},
-		{{JSTR_NOTE, 58}, {JSTR_KEY, "j"}},
-		{{JSTR_NOTE, 59}, {JSTR_KEY, "m"}},
-		{{JSTR_NOTE, 60}, {JSTR_KEY, "q"}},
-		{{JSTR_NOTE, 61}, {JSTR_KEY, "2"}},
-		{{JSTR_NOTE, 62}, {JSTR_KEY, "w"}},
-		{{JSTR_NOTE, 63}, {JSTR_KEY, "3"}},
-		{{JSTR_NOTE, 64}, {JSTR_KEY, "e"}},
-		{{JSTR_NOTE, 65}, {JSTR_KEY, "r"}},
-		{{JSTR_NOTE, 66}, {JSTR_KEY, "5"}},
-		{{JSTR_NOTE, 67}, {JSTR_KEY, "t"}},
-		{{JSTR_NOTE, 68}, {JSTR_KEY, "6"}},
-		{{JSTR_NOTE, 69}, {JSTR_KEY, "y"}},
-		{{JSTR_NOTE, 70}, {JSTR_KEY, "7"}},
-		{{JSTR_NOTE, 71}, {JSTR_KEY, "u"}},
-		{{JSTR_NOTE, 72}, {JSTR_KEY, "i"}},
-		{{JSTR_NOTE, 73}, {JSTR_KEY, "9"}},
-		{{JSTR_NOTE, 74}, {JSTR_KEY, "o"}},
-		{{JSTR_NOTE, 75}, {JSTR_KEY, "0"}},
-		{{JSTR_NOTE, 76}, {JSTR_KEY, "p"}},
+		{{JSTR_DATA, 48}, {JSTR_INPUT, "z"}},
+		{{JSTR_DATA, 49}, {JSTR_INPUT, "s"}},
+		{{JSTR_DATA, 50}, {JSTR_INPUT, "x"}},
+		{{JSTR_DATA, 51}, {JSTR_INPUT, "d"}},
+		{{JSTR_DATA, 52}, {JSTR_INPUT, "c"}},
+		{{JSTR_DATA, 53}, {JSTR_INPUT, "v"}},
+		{{JSTR_DATA, 54}, {JSTR_INPUT, "g"}},
+		{{JSTR_DATA, 55}, {JSTR_INPUT, "b"}},
+		{{JSTR_DATA, 56}, {JSTR_INPUT, "h"}},
+		{{JSTR_DATA, 57}, {JSTR_INPUT, "n"}},
+		{{JSTR_DATA, 58}, {JSTR_INPUT, "j"}},
+		{{JSTR_DATA, 59}, {JSTR_INPUT, "m"}},
+		{{JSTR_DATA, 60}, {JSTR_INPUT, "q"}},
+		{{JSTR_DATA, 61}, {JSTR_INPUT, "2"}},
+		{{JSTR_DATA, 62}, {JSTR_INPUT, "w"}},
+		{{JSTR_DATA, 63}, {JSTR_INPUT, "3"}},
+		{{JSTR_DATA, 64}, {JSTR_INPUT, "e"}},
+		{{JSTR_DATA, 65}, {JSTR_INPUT, "r"}},
+		{{JSTR_DATA, 66}, {JSTR_INPUT, "5"}},
+		{{JSTR_DATA, 67}, {JSTR_INPUT, "t"}},
+		{{JSTR_DATA, 68}, {JSTR_INPUT, "6"}},
+		{{JSTR_DATA, 69}, {JSTR_INPUT, "y"}},
+		{{JSTR_DATA, 70}, {JSTR_INPUT, "7"}},
+		{{JSTR_DATA, 71}, {JSTR_INPUT, "u"}},
+		{{JSTR_DATA, 72}, {JSTR_INPUT, "i"}},
+		{{JSTR_DATA, 73}, {JSTR_INPUT, "9"}},
+		{{JSTR_DATA, 74}, {JSTR_INPUT, "o"}},
+		{{JSTR_DATA, 75}, {JSTR_INPUT, "0"}},
+		{{JSTR_DATA, 76}, {JSTR_INPUT, "p"}},
 	}},
 };
 
+// hardcoded key definitions that can be used in this software.
 std::map<short, s_key> g_keys = {
 	{VK_DOWN,{0x50,true,"Down"}},
 	{VK_NEXT,{0x51,true,"PgDown"}},
@@ -244,36 +247,6 @@ std::map<short, s_key> g_keys = {
 	{'P',{0x19,false,"P"}},
 };
 
-std::map<char, short> g_pads = {
-	{36,VK_LCONTROL},
-	{38,VK_LEFT},
-	{42,VK_DOWN},
-	{46,VK_RIGHT},
-	{50,VK_LSHIFT},
-	{45,VK_LMENU},
-	{51,VK_UP},
-	{49,VK_TAB},
-};
-
-std::map<char, short> g_numpadPads = {
-	{36,VK_NUMPAD4},
-	{38,VK_NUMPAD5},
-	{42,VK_NUMPAD6},
-	{46,VK_NUMPAD7},
-	{50,VK_NUMPAD0},
-	{45,VK_NUMPAD1},
-	{51,VK_NUMPAD2},
-	{49,VK_NUMPAD3},
-};
-
-std::map<char, short> g_btns = {
-	{114,VK_SUBTRACT},	// previous sound or pattern
-	{115,VK_ADD},		// next sound or pattern
-	{116,VK_DELETE},	// delete note
-	{117,VK_RETURN},	// insert note
-	{118,VK_SPACE},		// play/pause
-};
-
 std::map<char, s_knob> g_knobs = {
 	{74,{ VK_OEM_COMMA, VK_OEM_PERIOD, INFINITE_KNOB }}, // sfx speed
 	{75,{ SPECIAL_VK_NUMPAD_SET, SPECIAL_VK_NUMPAD_SET}}, // numpad set
@@ -329,31 +302,35 @@ bool keypress(short vk, bool press, bool release)
 	return false;
 }
 
+bool trySendInput(const char* inputArrayJStr, int data1, int data2)
+{
+	if (g_currentConf->contains(inputArrayJStr))
+	{
+		json noteArray = g_currentConf->at(inputArrayJStr);
+		for (int i = 0; i < noteArray.size(); ++i)
+		{
+			json noteData = noteArray[i];
+			if (noteData.at(JSTR_DATA) == data1)
+			{
+				auto key = noteData.at(JSTR_INPUT);
+				short vk = g_jstrToVk.at(key);
+				bool press = data2 != 0;
+				return keypress(vk, press, !press);
+			}
+		}
+	}
+
+	return false;
+}
+
 void mycallback(double deltatime, std::vector< unsigned char > *message, void *userData)
 {
 	unsigned int nBytes = message->size();
 	int type = message->at(0);
 	if (type == g_currentConf->at(JSTR_MESSAGE_NOTE))
 	{
-		bool found = false;
 		int note = message->at(1);
-		if (g_currentConf->contains(JSTR_NOTE_INPUTS))
-		{
-			json noteArray = g_currentConf->at(JSTR_NOTE_INPUTS);
-			for (int i = 0; i < noteArray.size(); ++i)
-			{
-				json noteData = noteArray[i];
-				if (noteData.at(JSTR_NOTE) == note)
-				{
-					auto key = noteData.at(JSTR_KEY);
-					short vk = g_jstrToVk.at(key);
-					bool press = message->at(2) != 0;
-					found = keypress(vk, press, !press);
-					break;
-				}
-			}
-		}
-		if (!found)
+		if (!trySendInput(JSTR_NOTE_INPUTS, note, message->at(2)))
 		{
 			std::cout << "note " << note << "\n";
 		}
@@ -361,21 +338,16 @@ void mycallback(double deltatime, std::vector< unsigned char > *message, void *u
 	else if (type == g_currentConf->at(JSTR_MESSAGE_PAD))
 	{
 		int pad = message->at(1);
-		std::map<char, short>* padsToUse;
-		if (g_padsAsNumpad)
+		if (g_padsMode1)
 		{
-			padsToUse = &g_numpadPads;
+			if (!trySendInput(JSTR_PAD1_INPUTS, pad, message->at(2)))
+			{
+				std::cout << "pad " << pad << "\n";
+			}
 		}
 		else
 		{
-			padsToUse = &g_pads;
-		}
-
-		if (padsToUse->find(pad) != padsToUse->end())
-		{
-			short vk = padsToUse->at(pad);
-			bool press = message->at(2) != 0;
-			if (!keypress(vk, press, !press))
+			if (!trySendInput(JSTR_PAD0_INPUTS, pad, message->at(2)))
 			{
 				std::cout << "pad " << pad << "\n";
 			}
@@ -384,23 +356,21 @@ void mycallback(double deltatime, std::vector< unsigned char > *message, void *u
 	else if (type == g_currentConf->at(JSTR_MESSAGE_BTN))
 	{
 		int btnVal = (int)message->at(1);
-		bool press = message->at(2) != 0;
-		if (btnVal == g_currentConf->at(JSTR_NUMPAD_MODE_CC))
+		if (btnVal == g_currentConf->at(JSTR_PAD_MODE_CC))
 		{
-			g_padsAsNumpad = press;
-			if (g_padsAsNumpad)
+			g_padsMode1 = message->at(2) != 0;
+			if (g_padsMode1)
 			{
-				std::cout << "pads in number mode\n";
+				std::cout << "pads mode 1\n";
 			}
 			else
 			{
-				std::cout << "pads in cursor mode\n";
+				std::cout << "pads mode 0\n";
 			}
 		}
-		else if (g_btns.find(btnVal) != g_btns.end())
+		else
 		{
-			short vk = g_btns.at(btnVal);
-			if (!keypress(vk, press, !press))
+			if (!trySendInput(JSTR_BTN_INPUTS, btnVal, message->at(2)))
 			{
 				std::cout << "button " << btnVal << "\n";
 			}
