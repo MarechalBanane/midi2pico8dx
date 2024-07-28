@@ -1,0 +1,136 @@
+// This software (midi2picodx) reads the MIDI messages sent by your
+// MIDI controller and converts them to keyboard inputs
+// compatible with pico-8.
+
+// MIDI messages consist of three bytes:
+// STATUS, DATA1 and DATA2.
+
+// STATUS is the main "event" that is happening
+// (note on, continuous control(cc) change, program change, etc.) 
+
+// DATA1 and DATA2 carry values between 0 and 127.
+// Their meaning depend on the STATUS byte.
+
+// Here is the list of the keys you can map :
+// "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "+",
+// "q", "w", "e", "r", "t", "y", "u", "i", "o", "p",
+// "a", "s", "d", "f", "g", "h", "j", "k", "l",
+// "z", "x", "c", "v", "b", "n", "m", ",", ".",
+// "ctrl","alt","shift","tab","return","space","backspace",
+// "left","right","down","up","pgdown","pgup","home","del",
+// "numpad1","numpad2","numpad3","numpad4","numpad5","numpad6","numpad7","numpad8","numpad9","numpad0"
+
+{
+	// Use this option to log all the MIDI messages sent by your
+	// MIDI controller.
+	// It can help you build a custom config.
+	"log_midi_messages": false,
+
+	// The MIDI message status byte sent when hitting a note
+	// (Theoretically controller-independent)
+	"message_status_note": 144,
+
+	// The MIDI message status byte sent when hitting a pad
+	"message_status_pad": 153,
+
+	// The MIDI message status byte sent when hitting a button
+	"message_status_btn": 191,
+
+	// The MIDI message status byte sent when turning a knob
+	"message_status_knob": 176,
+
+	// The Continuous Control (CC) that will be reserved to
+	// toggle between pad0 and pad1 inputs.
+	// Useful if you want to switch the pads control scheme
+	// by pressing a button.
+	"pad_mode_cc": 113,
+
+	// Infinite knobs can trigger two different keyboard inputs
+	// based on the value they send in DATA2:
+	// if DATA2 is inferior to this value, the first input is sent.
+	// if not, the second input is sent.
+	"infinite_knob_midvalue": 64,
+
+	"note_inputs": [
+		// 48 -> 76
+		// C0 -> E2
+		{"data": 48, "input": "z"},
+		{"data": 49, "input": "s"},
+		{"data": 50, "input": "x"},
+		{"data": 51, "input": "d"},
+		{"data": 52, "input": "c"},
+		{"data": 53, "input": "v"},
+		{"data": 54, "input": "g"},
+		{"data": 55, "input": "b"},
+		{"data": 56, "input": "h"},
+		{"data": 57, "input": "n"},
+		{"data": 58, "input": "j"},
+		{"data": 59, "input": "m"},
+		{"data": 60, "input": "q"},
+		{"data": 61, "input": "2"},
+		{"data": 62, "input": "w"},
+		{"data": 63, "input": "3"},
+		{"data": 64, "input": "e"},
+		{"data": 65, "input": "r"},
+		{"data": 66, "input": "5"},
+		{"data": 67, "input": "t"},
+		{"data": 68, "input": "6"},
+		{"data": 69, "input": "y"},
+		{"data": 70, "input": "7"},
+		{"data": 71, "input": "u"},
+		{"data": 72, "input": "i"},
+		{"data": 73, "input": "9"},
+		{"data": 74, "input": "o"},
+		{"data": 75, "input": "0"},
+		{"data": 76, "input": "p"}
+	],
+
+	// you can switch between pad0 and pad1 inputs
+	// by defining "pad_mode_cc" to the cc (data) value of
+	// one of your MIDI controller buttons.
+	"pad0_inputs": [
+		{"data": 36, "input": "ctrl"},
+		{"data": 38, "input": "left"},
+		{"data": 42, "input": "down"},
+		{"data": 46, "input": "right"},
+		{"data": 50, "input": "shift"},
+		{"data": 45, "input": "alt"},
+		{"data": 51, "input": "up"},
+		{"data": 49, "input": "tab"}
+	],
+
+	// you can switch between pad0 and pad1 inputs
+	// by defining "pad_mode_cc" to the cc (data) value of
+	// one of your MIDI controller buttons.
+	"pad1_inputs": [
+		{"data": 36, "input": "numpad4"},
+		{"data": 38, "input": "numpad5"},
+		{"data": 42, "input": "numpad6"},
+		{"data": 46, "input": "numpad7"},
+		{"data": 50, "input": "numpad0"},
+		{"data": 45, "input": "numpad1"},
+		{"data": 51, "input": "numpad2"},
+		{"data": 49, "input": "numpad3"}
+	],
+
+	"btn_inputs": [
+		{"data": 114, "input": "-"},
+		{"data": 115, "input": "+"},
+		{"data": 116, "input": "del"},
+		{"data": 117, "input": "return"},
+		{"data": 118, "input": "space"}
+	],
+
+	// knobs are assumed to send relative values (except special inputs),
+	// one under "infinite_knob_midvalue", and one over it.
+	// Special inputs:
+	//	  "numpadset" -> the DATA2 byte of the MIDI message will be stored as a numpad value.
+	//	  "numpadsend" -> the stored numpad value is sent as an input, regardless of the MIDI message data content.
+	"knob_inputs": [
+		{"data": 74, "input-": ",", "input+": "."},
+		{"data": 75, "input-": "numpadset"},
+		{"data": 76, "input-": "numpadsend"},
+		{"data": 78, "input-": "up", "input+": "down"},
+		{"data": 79, "input-": "left", "input+": "right"}
+	]
+}
