@@ -1,4 +1,4 @@
-﻿// midi2pico8.cpp : This file contains the 'main' function. Program execution begins and ends there.
+﻿// midi2pico8dx.cpp : This file contains the 'main' function. Program execution begins and ends there.
 //
 
 #include <iostream>
@@ -13,8 +13,6 @@
 using json = nlohmann::json;
 
 #define CONFIG_FILE_NAME "config.json"
-#define SPECIAL_VK_NUMPAD_SET -1
-#define SPECIAL_VK_NUMPAD_SEND -2
 #define MAX_NUMPAD_VALUE 7
 
 // source for scan codes : https://learn.microsoft.com/en-us/previous-versions/visualstudio/visual-studio-6.0/aa299374(v=vs.60)
@@ -54,9 +52,6 @@ typedef struct s_knob
 	short data0; 
 };
 
-#define FINITE_KNOB 0
-#define INFINITE_KNOB -1
-
 #define JSTR_LOG_MIDI_MESSAGES	"log_midi_messages"
 #define JSTR_MESSAGE_NOTE		"message_status_note"
 #define JSTR_MESSAGE_PAD		"message_status_pad"
@@ -71,6 +66,11 @@ typedef struct s_knob
 #define JSTR_KNOB_INPUTS		"knob_inputs"
 #define JSTR_DATA				"data"
 #define JSTR_INPUT				"input"
+#define JSTR_INPUTM				"input-"
+#define JSTR_INPUTP				"input+"
+
+#define JSTR_SINPUT_NUMPADSET	"numpadset"
+#define JSTR_SINPUT_NUMPADSEND	"numpadsend"
 
 // hardcoded specification of which inputs are available in JSON
 std::map<std::string, short> g_jstrToVk =
@@ -247,14 +247,6 @@ std::map<short, s_key> g_keys = {
 	{'P',{0x19,false,"P"}},
 };
 
-std::map<char, s_knob> g_knobs = {
-	{74,{ VK_OEM_COMMA, VK_OEM_PERIOD, INFINITE_KNOB }}, // sfx speed
-	{75,{ SPECIAL_VK_NUMPAD_SET, SPECIAL_VK_NUMPAD_SET}}, // numpad set
-	{76,{ SPECIAL_VK_NUMPAD_SEND, SPECIAL_VK_NUMPAD_SEND}}, // numpad send
-	{78,{ VK_UP, VK_DOWN, INFINITE_KNOB }}, // up/down
-	{79,{ VK_LEFT, VK_RIGHT, INFINITE_KNOB }}, // left/right
-};
-
 json* g_currentConf = 0;
 
 bool keypress(short vk, bool press, bool release)
@@ -306,16 +298,63 @@ bool trySendInput(const char* inputArrayJStr, int data1, int data2)
 {
 	if (g_currentConf->contains(inputArrayJStr))
 	{
-		json noteArray = g_currentConf->at(inputArrayJStr);
-		for (int i = 0; i < noteArray.size(); ++i)
+		json inputArray = g_currentConf->at(inputArrayJStr);
+		for (int i = 0; i < inputArray.size(); ++i)
 		{
-			json noteData = noteArray[i];
-			if (noteData.at(JSTR_DATA) == data1)
+			json inputData = inputArray[i];
+			if (inputData.at(JSTR_DATA) == data1)
 			{
-				auto key = noteData.at(JSTR_INPUT);
+				auto key = inputData.at(JSTR_INPUT);
 				short vk = g_jstrToVk.at(key);
 				bool press = data2 != 0;
 				return keypress(vk, press, !press);
+			}
+		}
+	}
+
+	return false;
+}
+
+bool trySendKnobInput(int data1, int data2)
+{
+	if (g_currentConf->contains(JSTR_KNOB_INPUTS))
+	{
+		json knobInputArray = g_currentConf->at(JSTR_KNOB_INPUTS);
+		for (int i = 0; i < knobInputArray.size(); ++i)
+		{
+			json knobInputData = knobInputArray[i];
+			if (knobInputData.at(JSTR_DATA) == data1)
+			{
+				auto inputMinus = knobInputData.at(JSTR_INPUTM);
+				if (inputMinus == JSTR_SINPUT_NUMPADSET)
+				{
+					data2 = data2 % (MAX_NUMPAD_VALUE + 1);
+					if (data2 != g_lastNumpadValue)
+					{
+						g_lastNumpadValue = data2;
+						std::cout << "virtual numpad set to " << g_lastNumpadValue << "\n";
+					}
+
+					return true;
+				}
+				else if (inputMinus == JSTR_SINPUT_NUMPADSEND)
+				{
+					return keypress(VK_NUMPAD0 + g_lastNumpadValue, true, true);
+				}
+				else
+				{
+					auto inputPlus = knobInputData.at(JSTR_INPUTP);
+					short vkminus = g_jstrToVk.at(inputMinus);
+					short vkplus = g_jstrToVk.at(inputPlus);
+					if (data2 <= g_currentConf->at(JSTR_INF_KNOB_MIDVALUE))
+					{
+						return keypress(vkminus, true, true);
+					}
+					else
+					{
+						return keypress(vkplus, true, true);
+					}
+				}
 			}
 		}
 	}
@@ -381,49 +420,7 @@ void mycallback(double deltatime, std::vector< unsigned char > *message, void *u
 		int knob = (int)message->at(1);
 		int val = (int)message->at(2);
 
-		if (g_knobs.find(knob) != g_knobs.end())
-		{
-			s_knob def = g_knobs.at(knob);
-			if (def.vkminus == SPECIAL_VK_NUMPAD_SET)
-			{
-				val = val % (MAX_NUMPAD_VALUE+1);
-				if (val != g_lastNumpadValue)
-				{
-					g_lastNumpadValue = val;
-					std::cout << "virtual numpad set to " << g_lastNumpadValue << "\n";
-				}
-			}
-			else if (def.vkminus == SPECIAL_VK_NUMPAD_SEND)
-			{
-				keypress(VK_NUMPAD0 + g_lastNumpadValue, true, true);
-			}
-			else if (def.data0 >= 0)
-			{
-				if (val <= def.data0)
-				{
-					keypress(def.vkminus, true, true);
-				}
-				else if (val > def.data0)
-				{
-					keypress(def.vkplus, true, true);
-				}
-
-				def.data0 = val;
-				g_knobs[knob] = def;
-			}
-			else
-			{
-				if (val <= g_currentConf->at(JSTR_INF_KNOB_MIDVALUE))
-				{
-					keypress(def.vkminus, true, true);
-				}
-				else
-				{
-					keypress(def.vkplus, true, true);
-				}
-			}
-		}
-		else
+		if (!trySendKnobInput(knob, val))
 		{
 			std::cout << "knob " << knob << ", val " << val << "\n";
 		}

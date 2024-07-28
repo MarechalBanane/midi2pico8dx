@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.5.33516.290
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "midi2pico8", "midi2pico8.vcxproj", "{A72A54D5-EDA4-48C4-80B4-4CCF8DDE1CE0}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "midi2pico8dx", "midi2pico8dx.vcxproj", "{A72A54D5-EDA4-48C4-80B4-4CCF8DDE1CE0}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
