@@ -377,7 +377,8 @@ void mycallback(double deltatime, std::vector< unsigned char > *message, void *u
 			std::cout << "note " << note << "\n";
 		}
 	}
-	else if (type == g_currentConf->at(JSTR_MESSAGE_PAD))
+	
+	if (type == g_currentConf->at(JSTR_MESSAGE_PAD))
 	{
 		int pad = message->at(1);
 		if (g_padsMode1)
@@ -395,7 +396,8 @@ void mycallback(double deltatime, std::vector< unsigned char > *message, void *u
 			}
 		}
 	}
-	else if (type == g_currentConf->at(JSTR_MESSAGE_BTN))
+	
+	if (type == g_currentConf->at(JSTR_MESSAGE_BTN))
 	{
 		int btnVal = (int)message->at(1);
 		if (btnVal == g_currentConf->at(JSTR_PAD_MODE_CC))
@@ -418,7 +420,8 @@ void mycallback(double deltatime, std::vector< unsigned char > *message, void *u
 			}
 		}
 	}
-	else if (type == g_currentConf->at(JSTR_MESSAGE_KNOB))
+	
+	if (type == g_currentConf->at(JSTR_MESSAGE_KNOB))
 	{
 		int knob = (int)message->at(1);
 		int val = (int)message->at(2);
