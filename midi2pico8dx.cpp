@@ -53,7 +53,8 @@ typedef struct s_knob
 };
 
 #define JSTR_LOG_MIDI_MESSAGES	"log_midi_messages"
-#define JSTR_MESSAGE_NOTE		"message_status_note"
+#define JSTR_MESSAGE_NOTE_ON	"message_status_note_on"
+#define JSTR_MESSAGE_NOTE_OFF	"message_status_note_off"
 #define JSTR_MESSAGE_PAD		"message_status_pad"
 #define JSTR_MESSAGE_BTN		"message_status_btn"
 #define JSTR_MESSAGE_KNOB		"message_status_knob"
@@ -146,7 +147,8 @@ std::map<std::string, short> g_jstrToVk =
 json c_defaultConf =
 {
 	{JSTR_LOG_MIDI_MESSAGES,false},
-	{JSTR_MESSAGE_NOTE,0x90},
+	{JSTR_MESSAGE_NOTE_ON,0x90},
+	{JSTR_MESSAGE_NOTE_OFF,0x90},
 	{JSTR_MESSAGE_PAD,0x99},
 	{JSTR_MESSAGE_BTN,0xbf},
 	{JSTR_MESSAGE_KNOB,0xb0},
@@ -366,7 +368,8 @@ void mycallback(double deltatime, std::vector< unsigned char > *message, void *u
 {
 	unsigned int nBytes = message->size();
 	int type = message->at(0);
-	if (type == g_currentConf->at(JSTR_MESSAGE_NOTE))
+	if (type == g_currentConf->at(JSTR_MESSAGE_NOTE_ON) or
+		type == g_currentConf->at(JSTR_MESSAGE_NOTE_OFF))
 	{
 		int note = message->at(1);
 		if (!trySendInput(JSTR_NOTE_INPUTS, note, message->at(2)))
