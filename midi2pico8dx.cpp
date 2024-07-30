@@ -31,6 +31,18 @@ using json = nlohmann::json;
 // 151 uses cc 96 (+) and 97 (-) with a constant val of 1. cc 100 and 101 are set to 0 (data2) and 127 (data3) respectively before a series of values.
 // 152 uses cc 96 (+) and 97 (-) with a constant val of 1. cc 98 and 99 are set to 0 (data2) and 127 (data3) respectively before a series of values.
 
+/* TODO:
+- reorganize statuses :
+	- the user does not need to specify them
+	- have a 'notes' array
+		- on processing, treat statuses 0x80 to 0x8f as note_off, and statuses 0x90-9f as note_on (except if velocity is 0, in that case it's note_off)
+	- have a 'controls' array
+		- each control has a type, which specifies its behaviour.
+			- button : data 1 cc, data 2 velocity. If > 0 on, otherwise off
+			- infinite knobs : data 1 cc, data 2 value. Two possible inputs separated by a mid value.
+- implement new control, 'axis' : data 1 cc, data 2 value. One input. If > mid value, input, then need to go below mid value to be able to send input again.
+- have a notion of 'device' in config, to be able to setup multiple devices in only one config. Use the port name as an identifier?.*/
+
 int g_lastNumpadValue = 0;
 bool g_padsMode1=false;
 
