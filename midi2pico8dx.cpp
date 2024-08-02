@@ -58,7 +58,7 @@ typedef struct s_knob
 
 #define JSTR_LOG_MIDI_MESSAGES	"log_midi_messages"
 #define JSTR_INF_KNOB_MIDVALUE	"infinite_knob_midvalue"
-#define JSTR_PAD_MODE_CC		"pad_mode_cc"
+#define JSTR_SWITCH_ALT_INPUTS	"switch_to_alt_inputs"
 
 #define JSTR_TYPE				"type"
 #define JSTR_TYPE_BTN			"btn"
@@ -149,7 +149,6 @@ std::map<std::string, short> g_jstrToVk =
 json c_defaultConf =
 {
 	{JSTR_LOG_MIDI_MESSAGES,false},
-	{JSTR_PAD_MODE_CC,113},
 	{JSTR_INF_KNOB_MIDVALUE,64},
 	{JSTR_NOTE_INPUTS,{
 		{{JSTR_NOTE, 48}, {JSTR_INPUT, "z"}},
@@ -333,19 +332,7 @@ void mycallback(double deltatime, std::vector< unsigned char > *message, void *u
 		int val = message->at(2);
 		bool found = false;
 
-		if (cc == g_currentConf->at(JSTR_PAD_MODE_CC))
-		{
-			g_altInput = val != 0;
-			if (g_altInput)
-			{
-				std::cout << "alt inputs ON\n";
-			}
-			else
-			{
-				std::cout << "alt inputs OFF\n";
-			}
-		}
-		else if (g_currentConf->contains(JSTR_CONTROL_INPUTS))
+		if (g_currentConf->contains(JSTR_CONTROL_INPUTS))
 		{
 			json inputArray = g_currentConf->at(JSTR_CONTROL_INPUTS);
 			for (int i = 0; i < inputArray.size(); ++i)
@@ -358,13 +345,30 @@ void mycallback(double deltatime, std::vector< unsigned char > *message, void *u
 					{
 						bool press = val != 0;
 						auto key = inputData.at(JSTR_INPUT);
-						if (g_altInput and inputData.contains(JSTR_ALT_INPUT))
+						if (key == JSTR_SWITCH_ALT_INPUTS)
 						{
-							key = inputData.at(JSTR_ALT_INPUT);
-						}
+							g_altInput = val != 0;
+							if (g_altInput)
+							{
+								std::cout << "alt inputs ON\n";
+							}
+							else
+							{
+								std::cout << "alt inputs OFF\n";
+							}
 
-						short vk = g_jstrToVk.at(key);
-						found = keypress(vk, press, !press);
+							found = true;
+						}
+						else
+						{
+							if (g_altInput and inputData.contains(JSTR_ALT_INPUT))
+							{
+								key = inputData.at(JSTR_ALT_INPUT);
+							}
+
+							short vk = g_jstrToVk.at(key);
+							found = keypress(vk, press, !press);
+						}
 					}
 					else if (type == JSTR_TYPE_KNOB)
 					{
