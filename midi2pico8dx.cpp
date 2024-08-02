@@ -32,19 +32,11 @@ using json = nlohmann::json;
 // 152 uses cc 96 (+) and 97 (-) with a constant val of 1. cc 98 and 99 are set to 0 (data2) and 127 (data3) respectively before a series of values.
 
 /* TODO:
-- reorganize statuses :
-	- the user does not need to specify them
-	- have a 'notes' array
-		- on processing, treat statuses 0x80 to 0x8f as note_off, and statuses 0x90-9f as note_on (except if velocity is 0, in that case it's note_off)
-	- have a 'controls' array
-		- each control has a type, which specifies its behaviour.
-			- button : data 1 cc, data 2 velocity. If > 0 on, otherwise off
-			- infinite knobs : data 1 cc, data 2 value. Two possible inputs separated by a mid value.
 - implement new control, 'axis' : data 1 cc, data 2 value. One input. If > mid value, input, then need to go below mid value to be able to send input again.
 - have a notion of 'device' in config, to be able to setup multiple devices in only one config. Use the port name as an identifier?.*/
 
 int g_lastNumpadValue = 0;
-bool g_padsMode1=false;
+bool g_altInput=false;
 
 typedef struct s_key
 {
@@ -65,20 +57,18 @@ typedef struct s_knob
 };
 
 #define JSTR_LOG_MIDI_MESSAGES	"log_midi_messages"
-#define JSTR_MESSAGE_NOTE_ON	"message_status_note_on"
-#define JSTR_MESSAGE_NOTE_OFF	"message_status_note_off"
-#define JSTR_MESSAGE_PAD		"message_status_pad"
-#define JSTR_MESSAGE_BTN		"message_status_btn"
-#define JSTR_MESSAGE_KNOB		"message_status_knob"
-#define JSTR_PAD_MODE_CC		"pad_mode_cc"
 #define JSTR_INF_KNOB_MIDVALUE	"infinite_knob_midvalue"
+#define JSTR_PAD_MODE_CC		"pad_mode_cc"
+
+#define JSTR_TYPE				"type"
+#define JSTR_TYPE_BTN			"btn"
+#define JSTR_TYPE_KNOB			"knob"
 #define JSTR_NOTE_INPUTS		"note_inputs"
-#define JSTR_PAD0_INPUTS		"pad0_inputs"
-#define JSTR_PAD1_INPUTS		"pad1_inputs"
-#define JSTR_BTN_INPUTS			"btn_inputs"
-#define JSTR_KNOB_INPUTS		"knob_inputs"
-#define JSTR_DATA				"data"
+#define JSTR_CONTROL_INPUTS		"control_inputs"
+#define JSTR_NOTE				"note"
+#define JSTR_CC					"cc"
 #define JSTR_INPUT				"input"
+#define JSTR_ALT_INPUT			"alt_input"
 #define JSTR_INPUTM				"input-"
 #define JSTR_INPUTP				"input+"
 
@@ -159,43 +149,38 @@ std::map<std::string, short> g_jstrToVk =
 json c_defaultConf =
 {
 	{JSTR_LOG_MIDI_MESSAGES,false},
-	{JSTR_MESSAGE_NOTE_ON,0x90},
-	{JSTR_MESSAGE_NOTE_OFF,0x90},
-	{JSTR_MESSAGE_PAD,0x99},
-	{JSTR_MESSAGE_BTN,0xbf},
-	{JSTR_MESSAGE_KNOB,0xb0},
 	{JSTR_PAD_MODE_CC,113},
 	{JSTR_INF_KNOB_MIDVALUE,64},
 	{JSTR_NOTE_INPUTS,{
-		{{JSTR_DATA, 48}, {JSTR_INPUT, "z"}},
-		{{JSTR_DATA, 49}, {JSTR_INPUT, "s"}},
-		{{JSTR_DATA, 50}, {JSTR_INPUT, "x"}},
-		{{JSTR_DATA, 51}, {JSTR_INPUT, "d"}},
-		{{JSTR_DATA, 52}, {JSTR_INPUT, "c"}},
-		{{JSTR_DATA, 53}, {JSTR_INPUT, "v"}},
-		{{JSTR_DATA, 54}, {JSTR_INPUT, "g"}},
-		{{JSTR_DATA, 55}, {JSTR_INPUT, "b"}},
-		{{JSTR_DATA, 56}, {JSTR_INPUT, "h"}},
-		{{JSTR_DATA, 57}, {JSTR_INPUT, "n"}},
-		{{JSTR_DATA, 58}, {JSTR_INPUT, "j"}},
-		{{JSTR_DATA, 59}, {JSTR_INPUT, "m"}},
-		{{JSTR_DATA, 60}, {JSTR_INPUT, "q"}},
-		{{JSTR_DATA, 61}, {JSTR_INPUT, "2"}},
-		{{JSTR_DATA, 62}, {JSTR_INPUT, "w"}},
-		{{JSTR_DATA, 63}, {JSTR_INPUT, "3"}},
-		{{JSTR_DATA, 64}, {JSTR_INPUT, "e"}},
-		{{JSTR_DATA, 65}, {JSTR_INPUT, "r"}},
-		{{JSTR_DATA, 66}, {JSTR_INPUT, "5"}},
-		{{JSTR_DATA, 67}, {JSTR_INPUT, "t"}},
-		{{JSTR_DATA, 68}, {JSTR_INPUT, "6"}},
-		{{JSTR_DATA, 69}, {JSTR_INPUT, "y"}},
-		{{JSTR_DATA, 70}, {JSTR_INPUT, "7"}},
-		{{JSTR_DATA, 71}, {JSTR_INPUT, "u"}},
-		{{JSTR_DATA, 72}, {JSTR_INPUT, "i"}},
-		{{JSTR_DATA, 73}, {JSTR_INPUT, "9"}},
-		{{JSTR_DATA, 74}, {JSTR_INPUT, "o"}},
-		{{JSTR_DATA, 75}, {JSTR_INPUT, "0"}},
-		{{JSTR_DATA, 76}, {JSTR_INPUT, "p"}},
+		{{JSTR_NOTE, 48}, {JSTR_INPUT, "z"}},
+		{{JSTR_NOTE, 49}, {JSTR_INPUT, "s"}},
+		{{JSTR_NOTE, 50}, {JSTR_INPUT, "x"}},
+		{{JSTR_NOTE, 51}, {JSTR_INPUT, "d"}},
+		{{JSTR_NOTE, 52}, {JSTR_INPUT, "c"}},
+		{{JSTR_NOTE, 53}, {JSTR_INPUT, "v"}},
+		{{JSTR_NOTE, 54}, {JSTR_INPUT, "g"}},
+		{{JSTR_NOTE, 55}, {JSTR_INPUT, "b"}},
+		{{JSTR_NOTE, 56}, {JSTR_INPUT, "h"}},
+		{{JSTR_NOTE, 57}, {JSTR_INPUT, "n"}},
+		{{JSTR_NOTE, 58}, {JSTR_INPUT, "j"}},
+		{{JSTR_NOTE, 59}, {JSTR_INPUT, "m"}},
+		{{JSTR_NOTE, 60}, {JSTR_INPUT, "q"}},
+		{{JSTR_NOTE, 61}, {JSTR_INPUT, "2"}},
+		{{JSTR_NOTE, 62}, {JSTR_INPUT, "w"}},
+		{{JSTR_NOTE, 63}, {JSTR_INPUT, "3"}},
+		{{JSTR_NOTE, 64}, {JSTR_INPUT, "e"}},
+		{{JSTR_NOTE, 65}, {JSTR_INPUT, "r"}},
+		{{JSTR_NOTE, 66}, {JSTR_INPUT, "5"}},
+		{{JSTR_NOTE, 67}, {JSTR_INPUT, "t"}},
+		{{JSTR_NOTE, 68}, {JSTR_INPUT, "6"}},
+		{{JSTR_NOTE, 69}, {JSTR_INPUT, "y"}},
+		{{JSTR_NOTE, 70}, {JSTR_INPUT, "7"}},
+		{{JSTR_NOTE, 71}, {JSTR_INPUT, "u"}},
+		{{JSTR_NOTE, 72}, {JSTR_INPUT, "i"}},
+		{{JSTR_NOTE, 73}, {JSTR_INPUT, "9"}},
+		{{JSTR_NOTE, 74}, {JSTR_INPUT, "o"}},
+		{{JSTR_NOTE, 75}, {JSTR_INPUT, "0"}},
+		{{JSTR_NOTE, 76}, {JSTR_INPUT, "p"}},
 	}},
 };
 
@@ -308,139 +293,120 @@ bool keypress(short vk, bool press, bool release)
 	return false;
 }
 
-bool trySendInput(const char* inputArrayJStr, int data1, int data2)
-{
-	if (g_currentConf->contains(inputArrayJStr))
-	{
-		json inputArray = g_currentConf->at(inputArrayJStr);
-		for (int i = 0; i < inputArray.size(); ++i)
-		{
-			json inputData = inputArray[i];
-			if (inputData.at(JSTR_DATA) == data1)
-			{
-				auto key = inputData.at(JSTR_INPUT);
-				short vk = g_jstrToVk.at(key);
-				bool press = data2 != 0;
-				return keypress(vk, press, !press);
-			}
-		}
-	}
-
-	return false;
-}
-
-bool trySendKnobInput(int data1, int data2)
-{
-	if (g_currentConf->contains(JSTR_KNOB_INPUTS))
-	{
-		json knobInputArray = g_currentConf->at(JSTR_KNOB_INPUTS);
-		for (int i = 0; i < knobInputArray.size(); ++i)
-		{
-			json knobInputData = knobInputArray[i];
-			if (knobInputData.at(JSTR_DATA) == data1)
-			{
-				auto inputMinus = knobInputData.at(JSTR_INPUTM);
-				if (inputMinus == JSTR_SINPUT_NUMPADSET)
-				{
-					data2 = data2 % (MAX_NUMPAD_VALUE + 1);
-					if (data2 != g_lastNumpadValue)
-					{
-						g_lastNumpadValue = data2;
-						std::cout << "virtual numpad set to " << g_lastNumpadValue << "\n";
-					}
-
-					return true;
-				}
-				else if (inputMinus == JSTR_SINPUT_NUMPADSEND)
-				{
-					return keypress(VK_NUMPAD0 + g_lastNumpadValue, true, true);
-				}
-				else
-				{
-					auto inputPlus = knobInputData.at(JSTR_INPUTP);
-					short vkminus = g_jstrToVk.at(inputMinus);
-					short vkplus = g_jstrToVk.at(inputPlus);
-					if (data2 <= g_currentConf->at(JSTR_INF_KNOB_MIDVALUE))
-					{
-						return keypress(vkminus, true, true);
-					}
-					else
-					{
-						return keypress(vkplus, true, true);
-					}
-				}
-			}
-		}
-	}
-
-	return false;
-}
-
 void mycallback(double deltatime, std::vector< unsigned char > *message, void *userData)
 {
 	unsigned int nBytes = message->size();
 	int type = message->at(0);
-	if (type == g_currentConf->at(JSTR_MESSAGE_NOTE_ON) or
-		type == g_currentConf->at(JSTR_MESSAGE_NOTE_OFF))
+
+	// 0x80-8F: note off messages
+	// 0x90-9F: note on messages
+	if (type>=0x80 and type<=0x9F)
 	{
 		int note = message->at(1);
-		if (!trySendInput(JSTR_NOTE_INPUTS, note, message->at(2)))
+		bool press = message->at(2) != 0 and type >= 0x90;
+		bool found = false;
+
+		if (g_currentConf->contains(JSTR_NOTE_INPUTS))
+		{
+			json inputArray = g_currentConf->at(JSTR_NOTE_INPUTS);
+			for (int i = 0; i < inputArray.size(); ++i)
+			{
+				json inputData = inputArray[i];
+				if (inputData.at(JSTR_NOTE) == note)
+				{
+					auto key = inputData.at(JSTR_INPUT);
+					short vk = g_jstrToVk.at(key);
+					found = keypress(vk, press, !press);
+					break;
+				}
+			}
+		}
+		if (!found)
 		{
 			std::cout << "note " << note << "\n";
 		}
 	}
-	
-	if (type == g_currentConf->at(JSTR_MESSAGE_PAD))
+	// 0x90-9F: control messages
+	else if (type>=0xB0 and type <=0xBF)
 	{
-		int pad = message->at(1);
-		if (g_padsMode1)
+		int cc = message->at(1);
+		int val = message->at(2);
+		bool found = false;
+
+		if (cc == g_currentConf->at(JSTR_PAD_MODE_CC))
 		{
-			if (!trySendInput(JSTR_PAD1_INPUTS, pad, message->at(2)))
+			g_altInput = val != 0;
+			if (g_altInput)
 			{
-				std::cout << "pad " << pad << "\n";
-			}
-		}
-		else
-		{
-			if (!trySendInput(JSTR_PAD0_INPUTS, pad, message->at(2)))
-			{
-				std::cout << "pad " << pad << "\n";
-			}
-		}
-	}
-	
-	if (type == g_currentConf->at(JSTR_MESSAGE_BTN))
-	{
-		int btnVal = (int)message->at(1);
-		if (btnVal == g_currentConf->at(JSTR_PAD_MODE_CC))
-		{
-			g_padsMode1 = message->at(2) != 0;
-			if (g_padsMode1)
-			{
-				std::cout << "pads mode 1\n";
+				std::cout << "alt inputs ON\n";
 			}
 			else
 			{
-				std::cout << "pads mode 0\n";
+				std::cout << "alt inputs OFF\n";
 			}
 		}
-		else
+		else if (g_currentConf->contains(JSTR_CONTROL_INPUTS))
 		{
-			if (!trySendInput(JSTR_BTN_INPUTS, btnVal, message->at(2)))
+			json inputArray = g_currentConf->at(JSTR_CONTROL_INPUTS);
+			for (int i = 0; i < inputArray.size(); ++i)
 			{
-				std::cout << "button " << btnVal << "\n";
+				json inputData = inputArray[i];
+				if (inputData.at(JSTR_CC) == cc)
+				{
+					auto type = inputData.at(JSTR_TYPE);
+					if (type == JSTR_TYPE_BTN)
+					{
+						bool press = val != 0;
+						auto key = inputData.at(JSTR_INPUT);
+						if (g_altInput and inputData.contains(JSTR_ALT_INPUT))
+						{
+							key = inputData.at(JSTR_ALT_INPUT);
+						}
+
+						short vk = g_jstrToVk.at(key);
+						found = keypress(vk, press, !press);
+					}
+					else if (type == JSTR_TYPE_KNOB)
+					{
+						auto inputMinus = inputData.at(JSTR_INPUTM);
+						if (inputMinus == JSTR_SINPUT_NUMPADSET)
+						{
+							val = val % (MAX_NUMPAD_VALUE + 1);
+							if (val != g_lastNumpadValue)
+							{
+								g_lastNumpadValue = val;
+								std::cout << "virtual numpad set to " << g_lastNumpadValue << "\n";
+							}
+
+							found = true;
+						}
+						else if (inputMinus == JSTR_SINPUT_NUMPADSEND)
+						{
+							found = keypress(VK_NUMPAD0 + g_lastNumpadValue, true, true);
+						}
+						else
+						{
+							auto inputPlus = inputData.at(JSTR_INPUTP);
+							short vkminus = g_jstrToVk.at(inputMinus);
+							short vkplus = g_jstrToVk.at(inputPlus);
+							if (val <= g_currentConf->at(JSTR_INF_KNOB_MIDVALUE))
+							{
+								found = keypress(vkminus, true, true);
+							}
+							else
+							{
+								found = keypress(vkplus, true, true);
+							}
+						}
+					}
+					break;
+				}
 			}
 		}
-	}
-	
-	if (type == g_currentConf->at(JSTR_MESSAGE_KNOB))
-	{
-		int knob = (int)message->at(1);
-		int val = (int)message->at(2);
 
-		if (!trySendKnobInput(knob, val))
+		if (!found)
 		{
-			std::cout << "knob " << knob << ", val " << val << "\n";
+			std::cout << "cc " << cc << " val " << val << "\n";
 		}
 	}
 
