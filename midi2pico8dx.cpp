@@ -19,24 +19,9 @@ using json = nlohmann::json;
 // source for virtual keys : https://learn.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
 // source for extended keys : https://learn.microsoft.com/en-us/windows/win32/inputdev/about-keyboard-input#extended-key-flag
 
-// On Axiom 25, by default:
-// "finite" knobs (0-127) are cc 74 through 81.
-// "infinite" knobs (+/-) are cc 146 through 152.
-// 146 through 149 use cc defined in data3 (0 by default).
-// 146: + = 65, - = 63
-// 147: + =  1, - = 127
-// 148: + = 65, - = 1 (redundant)
-// 149: + = 1, - = 65 (redundant)
-// 150 uses cc 96 (+) and 97 (-) with a constant val of 0.
-// 151 uses cc 96 (+) and 97 (-) with a constant val of 1. cc 100 and 101 are set to 0 (data2) and 127 (data3) respectively before a series of values.
-// 152 uses cc 96 (+) and 97 (-) with a constant val of 1. cc 98 and 99 are set to 0 (data2) and 127 (data3) respectively before a series of values.
-
-/* TODO:
-- implement new control, 'axis' : data 1 cc, data 2 value. One input. If > mid value, input, then need to go below mid value to be able to send input again.
-- have a notion of 'device' in config, to be able to setup multiple devices in only one config. Use the port name as an identifier?.*/
-
 int g_lastNumpadValue = 0;
 bool g_altInput=false;
+std::string g_portName;
 
 typedef struct s_key
 {
@@ -63,6 +48,9 @@ typedef struct s_knob
 #define JSTR_TYPE_BTN			"btn"
 #define JSTR_TYPE_KNOB			"knob"
 #define JSTR_NOTE_INPUTS		"note_inputs"
+
+#define JSTR_DEVICES			"devices"
+#define JSTR_PORTNAME			"name"
 #define JSTR_CONTROL_INPUTS		"control_inputs"
 #define JSTR_NOTE				"note"
 #define JSTR_CC					"cc"
@@ -247,6 +235,7 @@ std::map<short, s_key> g_keys = {
 };
 
 json* g_currentConf = 0;
+json* g_currentDev = 0;
 
 bool keypress(short vk, bool press, bool release)
 {
@@ -327,106 +316,109 @@ void mycallback(double deltatime, std::vector< unsigned char > *message, void *u
 		}
 	}
 	// 0x90-9F: control messages
-	else if (type>=0xB0 and type <=0xBF)
+	else if (type >= 0xB0 and type <= 0xBF)
 	{
 		int cc = message->at(1);
 		int val = message->at(2);
 		bool found = false;
 
-		if (g_currentConf->contains(JSTR_CONTROL_INPUTS))
+		if (g_currentDev != 0)
 		{
-			json inputArray = g_currentConf->at(JSTR_CONTROL_INPUTS);
-			for (int i = 0; i < inputArray.size(); ++i)
+			if (g_currentDev->contains(JSTR_CONTROL_INPUTS))
 			{
-				json inputData = inputArray[i];
-				if (inputData.at(JSTR_CC) == cc)
+				json inputArray = g_currentDev->at(JSTR_CONTROL_INPUTS);
+				for (int i = inputArray.size() - 1; i >= 0; --i)
 				{
-					auto type = inputData.at(JSTR_TYPE);
-					if (type == JSTR_TYPE_BTN)
+					json inputData = inputArray[i];
+					if (inputData.at(JSTR_CC) == cc)
 					{
-						auto key = inputData.at(JSTR_INPUT);
-						auto midValue = inputData.at(JSTR_THRESHOLD);
-						bool press = false;
-						bool release = false;
-						found = true;
+						auto type = inputData.at(JSTR_TYPE);
+						if (type == JSTR_TYPE_BTN)
+						{
+							auto key = inputData.at(JSTR_INPUT);
+							auto midValue = inputData.at(JSTR_THRESHOLD);
+							bool press = false;
+							bool release = false;
+							found = true;
 
-						if (g_btns.find(cc) == g_btns.end())
-						{
-							press = val >= midValue;
-							g_btns[cc] = press;
-						}
-						else
-						{
-							bool on = val >= midValue;
-							if (on != g_btns[cc])
+							if (g_btns.find(cc) == g_btns.end())
 							{
-								g_btns[cc] = on;
-								press = on;
-								release = not on;
+								press = val >= midValue;
+								g_btns[cc] = press;
 							}
-						}
-
-						if (press or release)
-						{
-							if (key == JSTR_SWITCH_ALT_INPUTS)
+							else
 							{
-								g_altInput = val != 0;
-								if (g_altInput)
+								bool on = val >= midValue;
+								if (on != g_btns[cc])
 								{
-									std::cout << "alt inputs ON\n";
+									g_btns[cc] = on;
+									press = on;
+									release = not on;
+								}
+							}
+
+							if (press or release)
+							{
+								if (key == JSTR_SWITCH_ALT_INPUTS)
+								{
+									g_altInput = val != 0;
+									if (g_altInput)
+									{
+										std::cout << "alt inputs ON\n";
+									}
+									else
+									{
+										std::cout << "alt inputs OFF\n";
+									}
 								}
 								else
 								{
-									std::cout << "alt inputs OFF\n";
+									if (g_altInput and inputData.contains(JSTR_ALT_INPUT))
+									{
+										key = inputData.at(JSTR_ALT_INPUT);
+									}
+
+									short vk = g_jstrToVk.at(key);
+									keypress(vk, press, !press);
 								}
 							}
-							else
+						}
+						else if (type == JSTR_TYPE_KNOB)
+						{
+							auto inputMinus = inputData.at(JSTR_INPUTM);
+							if (inputMinus == JSTR_SINPUT_NUMPADSET)
 							{
-								if (g_altInput and inputData.contains(JSTR_ALT_INPUT))
+								val = val % (MAX_NUMPAD_VALUE + 1);
+								if (val != g_lastNumpadValue)
 								{
-									key = inputData.at(JSTR_ALT_INPUT);
+									g_lastNumpadValue = val;
+									std::cout << "virtual numpad set to " << g_lastNumpadValue << "\n";
 								}
 
-								short vk = g_jstrToVk.at(key);
-								keypress(vk, press, !press);
+								found = true;
 							}
-						}
-					}
-					else if (type == JSTR_TYPE_KNOB)
-					{
-						auto inputMinus = inputData.at(JSTR_INPUTM);
-						if (inputMinus == JSTR_SINPUT_NUMPADSET)
-						{
-							val = val % (MAX_NUMPAD_VALUE + 1);
-							if (val != g_lastNumpadValue)
+							else if (inputMinus == JSTR_SINPUT_NUMPADSEND)
 							{
-								g_lastNumpadValue = val;
-								std::cout << "virtual numpad set to " << g_lastNumpadValue << "\n";
-							}
-
-							found = true;
-						}
-						else if (inputMinus == JSTR_SINPUT_NUMPADSEND)
-						{
-							found = keypress(VK_NUMPAD0 + g_lastNumpadValue, true, true);
-						}
-						else
-						{
-							auto inputPlus = inputData.at(JSTR_INPUTP);
-							auto midValue = inputData.at(JSTR_THRESHOLD);
-							short vkminus = g_jstrToVk.at(inputMinus);
-							short vkplus = g_jstrToVk.at(inputPlus);
-							if (val <= midValue)
-							{
-								found = keypress(vkminus, true, true);
+								found = keypress(VK_NUMPAD0 + g_lastNumpadValue, true, true);
 							}
 							else
 							{
-								found = keypress(vkplus, true, true);
+								auto inputPlus = inputData.at(JSTR_INPUTP);
+								auto midValue = inputData.at(JSTR_THRESHOLD);
+								short vkminus = g_jstrToVk.at(inputMinus);
+								short vkplus = g_jstrToVk.at(inputPlus);
+								if (val <= midValue)
+								{
+									found = keypress(vkminus, true, true);
+								}
+								else
+								{
+									found = keypress(vkplus, true, true);
+								}
 							}
 						}
+						break;
 					}
-					break;
 				}
 			}
 		}
@@ -469,6 +461,7 @@ int main()
 
 	// load config file
 	json data;
+	json device;
 	std::cout << "Loading '" << CONFIG_FILE_NAME << "'...\n";
 	std::ifstream confFile(CONFIG_FILE_NAME);
 	if (confFile.fail())
@@ -502,12 +495,40 @@ int main()
 	while (midiin->getPortCount() == 0)
 		Sleep(200);
 
-	std::cout << "Reading MIDI input from " << midiin->getPortName(0) << "...\n";
+	g_portName = midiin->getPortName(0);
+
+	std::cout << "Reading MIDI input from device \"" << g_portName << "\"...\n";
+
+	if (g_currentConf->contains(JSTR_DEVICES))
+	{
+		json deviceArray = g_currentConf->at(JSTR_DEVICES);
+		for (int i = 0; i < deviceArray.size(); ++i)
+		{
+			json deviceData = deviceArray[i];
+			if (!deviceData.contains(JSTR_PORTNAME) or deviceData.at(JSTR_PORTNAME) == "" or deviceData.at(JSTR_PORTNAME) == g_portName)
+			{
+				device = deviceArray[i];
+				g_currentDev = &device;
+				std::cout << "Found device " << deviceData.at(JSTR_PORTNAME) << " in config!\n";
+				break;
+			}
+		}
+	}
+
+	if (g_currentDev == 0)
+	{
+		std::cout << "No corresponding device found in config. Control inputs will not be available.\n";
+	}
+
+	std::cout << "\nTo quit, press ESC to quit or unplug your MIDI controller.\n\n";
+
 	midiin->openPort(0);
 
 	while (midiin->getPortCount() > 0)
 	{
-		Sleep(200);
+		Sleep(5);
+		if (GetAsyncKeyState(VK_ESCAPE) & 0x8000)
+			break;
 	}
 
 	midiin->closePort();

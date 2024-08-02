@@ -1,0 +1,135 @@
+// This software (midi2picodx) reads the MIDI messages sent by your
+// MIDI controller and converts them to keyboard inputs
+// compatible with pico-8.
+
+// MIDI messages consist of three bytes:
+// STATUS, DATA1 and DATA2.
+
+// STATUS is the main "event" that is happening
+// (note on, continuous control(cc) change, program change, etc.) 
+
+// DATA1 and DATA2 carry values between 0 and 127.
+// Their meaning depend on the STATUS byte.
+
+// Here is the list of the keys you can map :
+// "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "+",
+// "q", "w", "e", "r", "t", "y", "u", "i", "o", "p",
+// "a", "s", "d", "f", "g", "h", "j", "k", "l",
+// "z", "x", "c", "v", "b", "n", "m", ",", ".",
+// "ctrl","alt","shift","tab","return","space","backspace",
+// "left","right","down","up","pgdown","pgup","home","del",
+// "numpad1","numpad2","numpad3","numpad4","numpad5","numpad6","numpad7","numpad8","numpad9","numpad0"
+
+{
+	// Use this option to log all the MIDI messages sent by your
+	// MIDI controller.
+	// It can help you build a custom config.
+	"log_midi_messages": false,
+
+	"note_inputs": [
+		// 48 -> 76
+		// C0 -> E2
+		{"note": 48, "input": "z"},
+		{"note": 49, "input": "s"},
+		{"note": 50, "input": "x"},
+		{"note": 51, "input": "d"},
+		{"note": 52, "input": "c"},
+		{"note": 53, "input": "v"},
+		{"note": 54, "input": "g"},
+		{"note": 55, "input": "b"},
+		{"note": 56, "input": "h"},
+		{"note": 57, "input": "n"},
+		{"note": 58, "input": "j"},
+		{"note": 59, "input": "m"},
+		{"note": 60, "input": "q"},
+		{"note": 61, "input": "2"},
+		{"note": 62, "input": "w"},
+		{"note": 63, "input": "3"},
+		{"note": 64, "input": "e"},
+		{"note": 65, "input": "r"},
+		{"note": 66, "input": "5"},
+		{"note": 67, "input": "t"},
+		{"note": 68, "input": "6"},
+		{"note": 69, "input": "y"},
+		{"note": 70, "input": "7"},
+		{"note": 71, "input": "u"},
+		{"note": 72, "input": "i"},
+		{"note": 73, "input": "9"},
+		{"note": 74, "input": "o"},
+		{"note": 75, "input": "0"},
+		{"note": 76, "input": "p"}
+	],
+
+	"devices":[
+		// You can configure as many devices as you want, and the program will
+		// try to select the correct one.
+		// You just have to fill the "name" field with the device name that appears
+		// in the midi2pico8dx console when you plug in the device.
+		// you can also leave the "name" blank to act as the default device.
+		{"name":"MPK mini 3 0", 
+
+		 "control_inputs":[
+			// there are 2 types of controls available :
+
+			// 	  - "btn": buttons.
+			//		they are assumed to send absolute values between 0 and 127.
+			// 		when the value goes above the "threshold" value, the input is pressed.
+			// 		when the value goes back under above the "threshold" value, the input is released.
+			// 		Special inputs:
+			//	  		"switch_to_alt_inputs" -> while pressed, all other btn ctrls will use the
+			//    		"alt_input" instead of the "input" field (if they have one)
+
+			// pads
+			{"cc": 16, "type":"btn", "threshold": 1, "input": "ctrl"},
+			{"cc": 17, "type":"btn", "threshold": 1, "input": "space"},
+			{"cc": 18, "type":"btn", "threshold": 1, "input": "return", "alt_input": "-"},
+			{"cc": 19, "type":"btn", "threshold": 1, "input": "del", "alt_input": "+"},
+			{"cc": 20, "type":"btn", "threshold": 1, "input": "shift"},
+			{"cc": 21, "type":"btn", "threshold": 1, "input": "alt"},
+			{"cc": 22, "type":"btn", "threshold": 1, "input": "tab"},
+			{"cc": 23, "type":"btn", "threshold": 1, "input": "switch_to_alt_inputs"},
+			{"cc": 24, "type":"btn", "threshold": 1, "input": "numpad4"},
+			{"cc": 25, "type":"btn", "threshold": 1, "input": "numpad5"},
+			{"cc": 26, "type":"btn", "threshold": 1, "input": "numpad6"},
+			{"cc": 27, "type":"btn", "threshold": 1, "input": "numpad7"},
+			{"cc": 28, "type":"btn", "threshold": 1, "input": "numpad0"},
+			{"cc": 29, "type":"btn", "threshold": 1, "input": "numpad1"},
+			{"cc": 30, "type":"btn", "threshold": 1, "input": "numpad2"},
+			{"cc": 31, "type":"btn", "threshold": 1, "input": "numpad3"},
+			// control stick
+			{"cc": 78, "type":"btn", "threshold": 64, "input": "left"},
+			{"cc": 79, "type":"btn", "threshold": 64, "input": "right"},
+			{"cc": 80, "type":"btn", "threshold": 64, "input": "up"},
+			{"cc": 81, "type":"btn", "threshold": 64, "input": "down"},
+
+
+			// 	  - "knob" : knobs.
+			// 		knobs are assumed to send relative values (except special inputs),
+			// 		one under "threshold" (which triggers "input-"), and one over it (which triggers "input+")
+			// 		Special inputs:
+			//	  		"numpadset" -> the DATA2 byte of the MIDI message will be stored as a numpad value.
+			//	  		"numpadsend" -> the stored numpad value is sent as an input, regardless of the MIDI message data content.
+
+			{"cc": 70, "type":"knob", "threshold": 64, "input-": ",", "input+": "."},
+			{"cc": 71, "type":"knob", "threshold": 64, "input-": "numpadset"},
+			{"cc": 72, "type":"knob", "threshold": 64, "input-": "numpadsend"},
+			{"cc": 73, "type":"knob", "threshold": 64, "input-": "+", "input+": "-"},
+			{"cc": 74, "type":"knob", "threshold": 64, "input-": "down", "input+": "up"},
+			{"cc": 75, "type":"knob", "threshold": 64, "input-": "right", "input+": "left"},
+			{"cc": 76, "type":"knob", "threshold": 64, "input-": "return", "input+": "del"}
+		 ]
+		},
+
+		{"name":"2- Axiom 25 MIDI In 0", 
+		 "control_inputs":[
+		 	// incomplete - just mapped buttons for testing purposes
+			{"cc": 113, "type":"btn", "threshold": 1, "input": "home"},
+			{"cc": 114, "type":"btn", "threshold": 1, "input": "-"},
+			{"cc": 115, "type":"btn", "threshold": 1, "input": "+"},
+			{"cc": 116, "type":"btn", "threshold": 1, "input": "del"},
+			{"cc": 117, "type":"btn", "threshold": 1, "input": "return"},
+			{"cc": 118, "type":"btn", "threshold": 1, "input": "space"}
+		 ]
+		}
+	]
+}
