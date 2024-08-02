@@ -53,11 +53,10 @@ typedef struct s_knob
 	// >= 0 for "finite knobs". Will be used to store the last sent value.
 	// < 0 for "infinite knobs". These knobs are assumed to send < 64 for - and > 64 for +. (=> cc 146 on Axiom 25)
 	// unused in SPECIAL_VK_NUMPAD case.
-	short data0; 
+	short data0;
 };
 
 #define JSTR_LOG_MIDI_MESSAGES	"log_midi_messages"
-#define JSTR_INF_KNOB_MIDVALUE	"infinite_knob_midvalue"
 #define JSTR_SWITCH_ALT_INPUTS	"switch_to_alt_inputs"
 
 #define JSTR_TYPE				"type"
@@ -71,6 +70,7 @@ typedef struct s_knob
 #define JSTR_ALT_INPUT			"alt_input"
 #define JSTR_INPUTM				"input-"
 #define JSTR_INPUTP				"input+"
+#define JSTR_THRESHOLD			"threshold"
 
 #define JSTR_SINPUT_NUMPADSET	"numpadset"
 #define JSTR_SINPUT_NUMPADSEND	"numpadsend"
@@ -149,7 +149,6 @@ std::map<std::string, short> g_jstrToVk =
 json c_defaultConf =
 {
 	{JSTR_LOG_MIDI_MESSAGES,false},
-	{JSTR_INF_KNOB_MIDVALUE,64},
 	{JSTR_NOTE_INPUTS,{
 		{{JSTR_NOTE, 48}, {JSTR_INPUT, "z"}},
 		{{JSTR_NOTE, 49}, {JSTR_INPUT, "s"}},
@@ -182,6 +181,8 @@ json c_defaultConf =
 		{{JSTR_NOTE, 76}, {JSTR_INPUT, "p"}},
 	}},
 };
+
+std::map<int, bool> g_btns = {};
 
 // hardcoded key definitions that can be used in this software.
 std::map<short, s_key> g_keys = {
@@ -343,31 +344,52 @@ void mycallback(double deltatime, std::vector< unsigned char > *message, void *u
 					auto type = inputData.at(JSTR_TYPE);
 					if (type == JSTR_TYPE_BTN)
 					{
-						bool press = val != 0;
 						auto key = inputData.at(JSTR_INPUT);
-						if (key == JSTR_SWITCH_ALT_INPUTS)
-						{
-							g_altInput = val != 0;
-							if (g_altInput)
-							{
-								std::cout << "alt inputs ON\n";
-							}
-							else
-							{
-								std::cout << "alt inputs OFF\n";
-							}
+						auto midValue = inputData.at(JSTR_THRESHOLD);
+						bool press = false;
+						bool release = false;
+						found = true;
 
-							found = true;
+						if (g_btns.find(cc) == g_btns.end())
+						{
+							press = val >= midValue;
+							g_btns[cc] = press;
 						}
 						else
 						{
-							if (g_altInput and inputData.contains(JSTR_ALT_INPUT))
+							bool on = val >= midValue;
+							if (on != g_btns[cc])
 							{
-								key = inputData.at(JSTR_ALT_INPUT);
+								g_btns[cc] = on;
+								press = on;
+								release = not on;
 							}
+						}
 
-							short vk = g_jstrToVk.at(key);
-							found = keypress(vk, press, !press);
+						if (press or release)
+						{
+							if (key == JSTR_SWITCH_ALT_INPUTS)
+							{
+								g_altInput = val != 0;
+								if (g_altInput)
+								{
+									std::cout << "alt inputs ON\n";
+								}
+								else
+								{
+									std::cout << "alt inputs OFF\n";
+								}
+							}
+							else
+							{
+								if (g_altInput and inputData.contains(JSTR_ALT_INPUT))
+								{
+									key = inputData.at(JSTR_ALT_INPUT);
+								}
+
+								short vk = g_jstrToVk.at(key);
+								keypress(vk, press, !press);
+							}
 						}
 					}
 					else if (type == JSTR_TYPE_KNOB)
@@ -391,9 +413,10 @@ void mycallback(double deltatime, std::vector< unsigned char > *message, void *u
 						else
 						{
 							auto inputPlus = inputData.at(JSTR_INPUTP);
+							auto midValue = inputData.at(JSTR_THRESHOLD);
 							short vkminus = g_jstrToVk.at(inputMinus);
 							short vkplus = g_jstrToVk.at(inputPlus);
-							if (val <= g_currentConf->at(JSTR_INF_KNOB_MIDVALUE))
+							if (val <= midValue)
 							{
 								found = keypress(vkminus, true, true);
 							}

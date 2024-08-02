@@ -26,111 +26,89 @@
 	// It can help you build a custom config.
 	"log_midi_messages": false,
 
-	// The MIDI message status byte sent when hitting a note
-	// (Theoretically controller-independent)
-	"message_status_note": 144,
-
-	// The MIDI message status byte sent when hitting a pad
-	"message_status_pad": 153,
-
-	// The MIDI message status byte sent when hitting a button
-	"message_status_btn": 191,
-
-	// The MIDI message status byte sent when turning a knob
-	"message_status_knob": 176,
-
-	// The Continuous Control (CC) that will be reserved to
-	// toggle between pad0 and pad1 inputs.
-	// Useful if you want to switch the pads control scheme
-	// by pressing a button.
-	"pad_mode_cc": 113,
-
-	// Infinite knobs can trigger two different keyboard inputs
-	// based on the value they send in DATA2:
-	// if DATA2 is inferior to this value, the first input is sent.
-	// if not, the second input is sent.
-	"infinite_knob_midvalue": 64,
-
 	"note_inputs": [
 		// 48 -> 76
 		// C0 -> E2
-		{"data": 48, "input": "z"},
-		{"data": 49, "input": "s"},
-		{"data": 50, "input": "x"},
-		{"data": 51, "input": "d"},
-		{"data": 52, "input": "c"},
-		{"data": 53, "input": "v"},
-		{"data": 54, "input": "g"},
-		{"data": 55, "input": "b"},
-		{"data": 56, "input": "h"},
-		{"data": 57, "input": "n"},
-		{"data": 58, "input": "j"},
-		{"data": 59, "input": "m"},
-		{"data": 60, "input": "q"},
-		{"data": 61, "input": "2"},
-		{"data": 62, "input": "w"},
-		{"data": 63, "input": "3"},
-		{"data": 64, "input": "e"},
-		{"data": 65, "input": "r"},
-		{"data": 66, "input": "5"},
-		{"data": 67, "input": "t"},
-		{"data": 68, "input": "6"},
-		{"data": 69, "input": "y"},
-		{"data": 70, "input": "7"},
-		{"data": 71, "input": "u"},
-		{"data": 72, "input": "i"},
-		{"data": 73, "input": "9"},
-		{"data": 74, "input": "o"},
-		{"data": 75, "input": "0"},
-		{"data": 76, "input": "p"}
+		{"note": 48, "input": "z"},
+		{"note": 49, "input": "s"},
+		{"note": 50, "input": "x"},
+		{"note": 51, "input": "d"},
+		{"note": 52, "input": "c"},
+		{"note": 53, "input": "v"},
+		{"note": 54, "input": "g"},
+		{"note": 55, "input": "b"},
+		{"note": 56, "input": "h"},
+		{"note": 57, "input": "n"},
+		{"note": 58, "input": "j"},
+		{"note": 59, "input": "m"},
+		{"note": 60, "input": "q"},
+		{"note": 61, "input": "2"},
+		{"note": 62, "input": "w"},
+		{"note": 63, "input": "3"},
+		{"note": 64, "input": "e"},
+		{"note": 65, "input": "r"},
+		{"note": 66, "input": "5"},
+		{"note": 67, "input": "t"},
+		{"note": 68, "input": "6"},
+		{"note": 69, "input": "y"},
+		{"note": 70, "input": "7"},
+		{"note": 71, "input": "u"},
+		{"note": 72, "input": "i"},
+		{"note": 73, "input": "9"},
+		{"note": 74, "input": "o"},
+		{"note": 75, "input": "0"},
+		{"note": 76, "input": "p"}
 	],
 
-	// you can switch between pad0 and pad1 inputs
-	// by defining "pad_mode_cc" to the cc (data) value of
-	// one of your MIDI controller buttons.
-	"pad0_inputs": [
-		{"data": 36, "input": "ctrl"},
-		{"data": 38, "input": "left"},
-		{"data": 42, "input": "down"},
-		{"data": 46, "input": "right"},
-		{"data": 50, "input": "shift"},
-		{"data": 45, "input": "alt"},
-		{"data": 51, "input": "up"},
-		{"data": 49, "input": "tab"}
-	],
+	"control_inputs": [
 
-	// you can switch between pad0 and pad1 inputs
-	// by defining "pad_mode_cc" to the cc (data) value of
-	// one of your MIDI controller buttons.
-	"pad1_inputs": [
-		{"data": 36, "input": "numpad4"},
-		{"data": 38, "input": "numpad5"},
-		{"data": 42, "input": "numpad6"},
-		{"data": 46, "input": "numpad7"},
-		{"data": 50, "input": "numpad0"},
-		{"data": 45, "input": "numpad1"},
-		{"data": 51, "input": "numpad2"},
-		{"data": 49, "input": "numpad3"}
-	],
+		// there are 2 types of controls available :
 
-	"btn_inputs": [
-		{"data": 114, "input": "-"},
-		{"data": 115, "input": "+"},
-		{"data": 116, "input": "del"},
-		{"data": 117, "input": "return"},
-		{"data": 118, "input": "space"}
-	],
+		// 	  - "btn": buttons.
+		//		they are assumed to send absolute values between 0 and 127.
+		// 		when the value goes above the "threshold" value, the input is pressed.
+		// 		when the value goes back under above the "threshold" value, the input is released.
+		// 		Special inputs:
+		//	  		"switch_to_alt_inputs" -> while pressed, all other btn ctrls will use the
+		//    		"alt_input" instead of the "input" field (if they have one)
 
-	// knobs are assumed to send relative values (except special inputs),
-	// one under "infinite_knob_midvalue", and one over it.
-	// Special inputs:
-	//	  "numpadset" -> the DATA2 byte of the MIDI message will be stored as a numpad value.
-	//	  "numpadsend" -> the stored numpad value is sent as an input, regardless of the MIDI message data content.
-	"knob_inputs": [
-		{"data": 74, "input-": ",", "input+": "."},
-		{"data": 75, "input-": "numpadset"},
-		{"data": 76, "input-": "numpadsend"},
-		{"data": 78, "input-": "up", "input+": "down"},
-		{"data": 79, "input-": "left", "input+": "right"}
+		// pads
+		{"cc": 16, "type":"btn", "threshold": 1, "input": "ctrl"},
+		{"cc": 17, "type":"btn", "threshold": 1, "input": "space"},
+		{"cc": 18, "type":"btn", "threshold": 1, "input": "return", "alt_input": "-"},
+		{"cc": 19, "type":"btn", "threshold": 1, "input": "del", "alt_input": "+"},
+		{"cc": 20, "type":"btn", "threshold": 1, "input": "shift"},
+		{"cc": 21, "type":"btn", "threshold": 1, "input": "alt"},
+		{"cc": 22, "type":"btn", "threshold": 1, "input": "tab"},
+		{"cc": 23, "type":"btn", "threshold": 1, "input": "switch_to_alt_inputs"},
+		{"cc": 24, "type":"btn", "threshold": 1, "input": "numpad4"},
+		{"cc": 25, "type":"btn", "threshold": 1, "input": "numpad5"},
+		{"cc": 26, "type":"btn", "threshold": 1, "input": "numpad6"},
+		{"cc": 27, "type":"btn", "threshold": 1, "input": "numpad7"},
+		{"cc": 28, "type":"btn", "threshold": 1, "input": "numpad0"},
+		{"cc": 29, "type":"btn", "threshold": 1, "input": "numpad1"},
+		{"cc": 30, "type":"btn", "threshold": 1, "input": "numpad2"},
+		{"cc": 31, "type":"btn", "threshold": 1, "input": "numpad3"},
+		// control stick
+		{"cc": 78, "type":"btn", "threshold": 64, "input": "left"},
+		{"cc": 79, "type":"btn", "threshold": 64, "input": "right"},
+		{"cc": 80, "type":"btn", "threshold": 64, "input": "up"},
+		{"cc": 81, "type":"btn", "threshold": 64, "input": "down"},
+
+
+		// 	  - "knob" : knobs.
+		// 		knobs are assumed to send relative values (except special inputs),
+		// 		one under "threshold" (which triggers "input-"), and one over it (which triggers "input+")
+		// 		Special inputs:
+		//	  		"numpadset" -> the DATA2 byte of the MIDI message will be stored as a numpad value.
+		//	  		"numpadsend" -> the stored numpad value is sent as an input, regardless of the MIDI message data content.
+
+		{"cc": 70, "type":"knob", "threshold": 64, "input-": ",", "input+": "."},
+		{"cc": 71, "type":"knob", "threshold": 64, "input-": "numpadset"},
+		{"cc": 72, "type":"knob", "threshold": 64, "input-": "numpadsend"},
+		{"cc": 73, "type":"knob", "threshold": 64, "input-": "+", "input+": "-"},
+		{"cc": 74, "type":"knob", "threshold": 64, "input-": "down", "input+": "up"},
+		{"cc": 75, "type":"knob", "threshold": 64, "input-": "right", "input+": "left"},
+		{"cc": 76, "type":"knob", "threshold": 64, "input-": "return", "input+": "del"}
 	]
 }
