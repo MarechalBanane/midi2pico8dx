@@ -2,16 +2,7 @@
 // MIDI controller and converts them to keyboard inputs
 // compatible with pico-8.
 
-// MIDI messages consist of three bytes:
-// STATUS, DATA1 and DATA2.
-
-// STATUS is the main "event" that is happening
-// (note on, continuous control(cc) change, program change, etc.) 
-
-// DATA1 and DATA2 carry values between 0 and 127.
-// Their meaning depend on the STATUS byte.
-
-// Here is the list of the keys you can map :
+// Here is the list of the keys you can bind :
 // "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "+",
 // "q", "w", "e", "r", "t", "y", "u", "i", "o", "p",
 // "a", "s", "d", "f", "g", "h", "j", "k", "l",
@@ -19,11 +10,18 @@
 // "ctrl","alt","shift","tab","return","space","backspace",
 // "left","right","down","up","pgdown","pgup","home","del",
 // "numpad1","numpad2","numpad3","numpad4","numpad5","numpad6","numpad7","numpad8","numpad9","numpad0"
+// (layout is assumed to be qwerty)
 
 {
 	// Use this option to log all the MIDI messages sent by your
 	// MIDI controller.
 	// It can help you build a custom config.
+	// MIDI messages consist of three bytes:
+	// STATUS, DATA1 and DATA2.
+	// STATUS is the main "event" that is happening
+	// (note on, continuous control(cc) change, program change, etc.) 
+	// DATA1 and DATA2 carry values between 0 and 127.
+	// Their meaning depend on the STATUS byte.
 	"log_midi_messages": false,
 
 	"note_inputs": [
@@ -76,7 +74,7 @@
 			// 		when the value goes above the "threshold" value, the input is pressed.
 			// 		when the value goes back under above the "threshold" value, the input is released.
 			// 		Special inputs:
-			//	  		"switch_to_alt_inputs" -> while pressed, all other btn ctrls will use the
+			//	  		"switch_to_alt_inputs" -> while pressed, all other btn controls will use the
 			//    		"alt_input" instead of the "input" field (if they have one)
 
 			// pads
