@@ -5,6 +5,7 @@ Midi2pico8dx is a small commandline utility that maps MIDI input to keyboard key
 - Bind keys, buttons and knobs to keyboard inputs!
 - A single json config file to simply create or edit key bindings!
 - The config file supports profiles. Have different bindings for all your MIDI controllers!
+- MIDI controller auto detection and profile auto selection!
 
 Forked from [https://github.com/samhocevar/midi2pico8](midi2pico8).
 
