@@ -1,6 +1,6 @@
 # midi2pico8dx
 
-Midi2pico8dx is a small commandline utility that maps MIDI input to keyboard keys for use in PICO-8.
+Midi2pico8dx is a small commandline utility that maps MIDI input to keyboard inputs for use in PICO-8.
 
 - Bind keys, buttons and knobs to keyboard inputs!
 - A single json config file to simply create or edit key bindings!
