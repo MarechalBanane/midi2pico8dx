@@ -455,9 +455,9 @@ void mycallback(double deltatime, std::vector< unsigned char > *message, void *u
 
 int main()
 {
-	std::cout << "==================\n";
-	std::cout << "* MIDI to PICO-8 *\n";
-	std::cout << "==================\n\n";
+	std::cout << "============================\n";
+	std::cout << "* MIDI to PICO-8    v0.2.1 *\n";
+	std::cout << "============================\n\n";
 
 	// load config file
 	json data;
@@ -520,14 +520,28 @@ int main()
 		std::cout << "No corresponding device found in config. Control inputs will not be available.\n";
 	}
 
-	std::cout << "\nTo quit, press ESC to quit or unplug your MIDI controller.\n\n";
+	std::cout << "\nTo quit, press ESC or unplug your MIDI controller.\n\n";
 
 	midiin->openPort(0);
 
 	while (midiin->getPortCount() > 0)
 	{
 		Sleep(5);
-		if (GetAsyncKeyState(VK_ESCAPE) & 0x8000)
+
+		DWORD pid1, pid2;
+		HWND handle=GetConsoleWindow();
+		while (true)
+		{
+			HWND parent = GetParent(handle);
+			if (parent != NULL && parent != GetDesktopWindow())
+				handle = GetParent(handle);
+			else
+				break;
+		}
+
+		GetWindowThreadProcessId(handle, &pid1);
+		GetWindowThreadProcessId(GetForegroundWindow(), &pid2);
+		if ((GetAsyncKeyState(VK_ESCAPE) & 0x8000) && pid1==pid2)
 			break;
 	}
 
